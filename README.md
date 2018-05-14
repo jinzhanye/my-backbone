@@ -1,4 +1,4 @@
-# BackboneTutorial
+# Backbone Source Analysis Note
 
 ## Model
 Model表示数据层，也就是程序需要的数据源，通常使用JSON格式表示。

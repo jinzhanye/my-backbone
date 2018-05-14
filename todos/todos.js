@@ -17,6 +17,9 @@ $(() => {
         },
         toggle() {
             this.save({done: !this.get('done')});
+        },
+        initialize() {
+            console.log('Todo Model initialize');
         }
     });
 
