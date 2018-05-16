@@ -35,7 +35,8 @@
 <script src="../jquery.js"></script>
 <script src="../underscore.js"></script>
 <!--<script src="../backbone.js"></script>-->
-<script src="../fe-backbone.js"></script>
+<script src="../backbone-fe.js"></script>
+<!--<script src="../backbone-comment.js"></script>-->
 <script>
     let WebsiteModel = Backbone.Model.extend({
         defaults: {// 设置默认值
@@ -44,97 +45,99 @@
         },
         initialize() {//该函数会在model创建后执行
             console.log('initialize');
-//            this.bindEvents();
+            this.bindEvents();
         },
-//        bindEvents() {
-//            this.on("change:color", function (model) {
-//                console.log("color has change:", model.get("color"));
-//            });
-//        }
+        bindEvents() {
+            this.on('change:color', function (model, nextVal) {
+                console.log(model);
+//                console.log('color has change:', model.get('color'));
+                console.log('change to:', nextVal);
+            });
+        }
     });
 
-//    let DocumentRow = Backbone.View.extend({
-////        tagName, id, className, el, 和 events 这些属性可以是函数也可以是对象
-//        tagName: 'h1',
-//        className: 'tagC',
-//        events: {
-//            'click .icon': 'open',
-//            'click .delete': 'destroy'
-//        },
-//        initialize() {
-//            this.listenTo(this.model, 'change', this.render);
-//
-//            console.log(this.el);//普通DOM对象
-//            console.log(this.$el);//用内置的$el获取jquery DOM对象
-//
-//            document.body.appendChild(this.el);
-//        },
-//        render() {
-//
-//        }
-//    });
-//
-//    let TheView = Backbone.View.extend({
-//        initialize() {
-//            this.render();
-//        },
-//        events: {
-//            'click .bbqH': 'clickHandle',//#sectionTwo .bbqH 内有效
-//            'mouseover': 'mouseHandle'//整个#sectionTwo内有效
-//        },
-//        clickHandle() {
-//            console.log('u click');
-//        },
-//        mouseHandle() {
-//            console.log('mouseover~~');
-//        },
-//        template: _.template($('#myTemplate').html()),
-//        render() {
-//            let template = this.template;
-//            this.$el.html(template);
-//            // 推荐的做法是在 render 函数的末尾 return this 以开启链式调用。
-//            return this;
-//        }
-//    });
-//
-//    let StudentModel = Backbone.Model.extend({
-//        defaults: {
-//            name: 'unknown'
-//        }
-//    });
-//
-//    let StudentCollection = Backbone.Collection.extend({
-//        model: StudentModel,
-//        initialize() {
-//            this.bindEvents();
-//        },
-//        bindEvents() {
-//            this.on('change:name', (model) => {
-//                console.log('Hey, the name changed:', model.get('name'));
-//            });
-//            this.on('add', (model) => {
-//                console.log('add a student:', model.get('name'));
-//            });
-//            this.on('remove', (model) => {
-//                console.log('remove a student:', model.get('name'));
-//            })
-//        }
-//    });
-//
-//    function displayCollectionContents(string, collections) {
-//        // toJSON方法名称比较混乱，因为它事实上并不返回 JSON 字符串，返回的是一个对象
-//        console.log(`${string}  ${JSON.stringify(collections.toJSON())}`);
-//    }
+    //    let DocumentRow = Backbone.View.extend({
+    ////        tagName, id, className, el, 和 events 这些属性可以是函数也可以是对象
+    //        tagName: 'h1',
+    //        className: 'tagC',
+    //        events: {
+    //            'click .icon': 'open',
+    //            'click .delete': 'destroy'
+    //        },
+    //        initialize() {
+    //            this.listenTo(this.model, 'change', this.render);
+    //
+    //            console.log(this.el);//普通DOM对象
+    //            console.log(this.$el);//用内置的$el获取jquery DOM对象
+    //
+    //            document.body.appendChild(this.el);
+    //        },
+    //        render() {
+    //
+    //        }
+    //    });
+    //
+    //    let TheView = Backbone.View.extend({
+    //        initialize() {
+    //            this.render();
+    //        },
+    //        events: {
+    //            'click .bbqH': 'clickHandle',//#sectionTwo .bbqH 内有效
+    //            'mouseover': 'mouseHandle'//整个#sectionTwo内有效
+    //        },
+    //        clickHandle() {
+    //            console.log('u click');
+    //        },
+    //        mouseHandle() {
+    //            console.log('mouseover~~');
+    //        },
+    //        template: _.template($('#myTemplate').html()),
+    //        render() {
+    //            let template = this.template;
+    //            this.$el.html(template);
+    //            // 推荐的做法是在 render 函数的末尾 return this 以开启链式调用。
+    //            return this;
+    //        }
+    //    });
+    //
+    //    let StudentModel = Backbone.Model.extend({
+    //        defaults: {
+    //            name: 'unknown'
+    //        }
+    //    });
+    //
+    //    let StudentCollection = Backbone.Collection.extend({
+    //        model: StudentModel,
+    //        initialize() {
+    //            this.bindEvents();
+    //        },
+    //        bindEvents() {
+    //            this.on('change:name', (model) => {
+    //                console.log('Hey, the name changed:', model.get('name'));
+    //            });
+    //            this.on('add', (model) => {
+    //                console.log('add a student:', model.get('name'));
+    //            });
+    //            this.on('remove', (model) => {
+    //                console.log('remove a student:', model.get('name'));
+    //            })
+    //        }
+    //    });
+    //
+    //    function displayCollectionContents(string, collections) {
+    //        // toJSON方法名称比较混乱，因为它事实上并不返回 JSON 字符串，返回的是一个对象
+    //        console.log(`${string}  ${JSON.stringify(collections.toJSON())}`);
+    //    }
 
     $(document).ready(() => {
         // 当创建model实例时，可以传入 属性 (attributes)初始值，这些值会被 set （设置）到 model
         let page_1 = new WebsiteModel({name: 'Hello World', foo: 'Hello git'});
+        debugger
         console.log(page_1);
-        page_1.set({foo: 'Hello I set val'});// 设值覆盖
+//        page_1.set({foo: 'Hello I set val'});// 设值覆盖
 //        console.log(`page_1 :, ${page_1.get("name")}, ${page_1.get("foo")},${page_1.get("bar")}`);
 //        // 改变color ，触发change:color事件
-//        page_1.set('color', 'Yellow');
-//        page_1.set('color', 'Green');
+        page_1.set('color', 'Yellow');
 //
 //        let view = new DocumentRow();
 //        // let view = new DocumentRow({el: $('#sectionOne')});

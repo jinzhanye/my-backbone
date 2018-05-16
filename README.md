@@ -20,6 +20,33 @@ Controller表示控制层，用来对原始数据（Model）进行加工，传�
 - save:POST/UPDATE
 - destroy:DELETE
 
+## 设计模式
+- 装饰者模式
+    - wrapError
+- eventApis iteree通用接口
+
+## backbone.Model对象
+````js
+backbone.Model = {
+ attributes:{bar: "I am Bar", color: "Blue", name: "Hello World", foo: "Hello git"},
+ changed:{},
+ cid:"c1",
+ _changing:false,
+ _events:{'change:color': Array(1)},
+ _pending:false,
+ _previousAttributes:{}   
+}
+````
+
+## 启动流程
+1. 识别环境
+1. 绑定jQuery、underscore
+1. extend
+
+
+## Question
+- attributes与attrs的区别
+
 ## 参考
 [使用简介](https://javascript.ruanyifeng.com/advanced/backbonejs.html)
 [各模块API图](https://www.jianshu.com/p/90a481e76eac)
