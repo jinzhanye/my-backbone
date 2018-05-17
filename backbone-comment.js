@@ -877,7 +877,7 @@
   var Collection = Backbone.Collection = function(models, options) {
     options || (options = {});
     this.preinitialize.apply(this, arguments);
-    //实际上我们在创建集合类的时候大多数都会定义一个model, 而不是在初始化的时候从options中指定model
+    // 实际上我们在创建集合类的时候大多数都会定义一个model, 而不是在初始化的时候从options中指定model
     if (options.model) this.model = options.model;
     //我们可以在options中指定一个comparator作为排序器
     if (options.comparator !== void 0) this.comparator = options.comparator;

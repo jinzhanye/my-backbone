@@ -233,14 +233,15 @@
     // Backbone.Model
     // ---------------
     var Model = Backbone.Model = function (attributes, options) {
+        // 备份开发者传入的model
         var attrs = attributes || {};
         options || (options = {});
         // 这个preinitialize函数实际上是为空的,可以给有兴趣的开发者重写这个函数，在初始化Model之前调用，
-        // 主要是为ES6的class写法提供方便
+        // 主要是为ES6的class写法提供方便??
         this.preinitialize.apply(this, arguments);
-
         // 使用underscore生成唯一id
         this.cid = _.uniqueId(this.cidPrefix);
+        // 初始化model为空对象
         this.attributes = {};
 
         // collection在获取model对应的后端url时使用，在model上设置collection并不会自动将model加入collection
@@ -255,12 +256,14 @@
 
         // 相当于this['defaults']
         var defaults = _.result(this, 'defaults');
+
+        // ****将model默认对象与new时传入的对象混合到一个对象
         // _.defaults(object, *defaults)
         // 如果某个属性在object为undefined(即不存在)，那么该属性会被defaults填充
         // 因为调用_.extend({}, defaults, attrs)时attrs里可能存在某个值为undefined的属性会覆盖defaults里的值，外层再调用 _.defaults 确保默认值不会被undefined覆盖
         attrs = _.defaults(_.extend({}, defaults, attrs), defaults);
         this.set(attrs, options);
-        // changed属性用来保存修改过的属性数据,第一次set，不需要changed数据
+        // 调用set函数后，会多出一些changed属性值，但是changed属性用来保存修改过的属性数据,第一次set，不需要changed数据，所以这些需要清空
         this.changed = {};
         this.initialize.apply(this, arguments);
     };
@@ -358,7 +361,7 @@
                     // 对每一个属性的更改都触发相应的事件,事件名采用 change:AttrName 格式
                     // changes保存的是key,current保存的是对象,current[changes[i]]即获取某个属性的值
                     // TODO
-                    this.trigger('change:' + changes[i], this, current[changes[i]], options)
+                    this.trigger('change:' + changes[i], this, current[changes[i]], options);
                 }
             }
 
@@ -386,6 +389,7 @@
             // 保存开发者传入的success callback
             var success = options.success;
             options.success = function (resp) {
+                debugger
                 var serverAttrs = options.parse ? model.parse(resp, options) : resp;
                 // set方法里会校验属性，如果不通过返回false
                 if (!model.set(serverAttrs, options)) {
@@ -470,6 +474,8 @@
             var xhr = this.sync(method, this, options);
             //恢复刚才由于要判断isNew而临时改变的attributes
             this.attributes = attributes;
+
+            return xhr;
         },
         // options不用？
         toJSON: function (options) {
@@ -503,9 +509,65 @@
 
     // Backbone.Collection
     // ---------------
-    var Collection = Backbone.Collection = function () {
-
+    var Collection = Backbone.Collection = function (models, options) {
+        options || (options = {});
+        this.preinitialize.apply(this, arguments);
+        // 实际开发中大多数在创建集合类的时候大多数都会定义一个model, 
+        // 但是也可以在初始化的时候从options中指定model
+        if (options.model) {
+            this.model = options.model;
+        }
+        // 可以在options中指定一个comparator作为排序器
+        if (options.comparator !== void 0) {
+            this.comparator = options.comparator;
+        }
+        // 初始化
+        this._reset();
+        this.initialize.apply(this, arguments);
+        if (models) {
+            // 初始化时不需要触发change，所以设置silent:true
+            this.reset(models, _.extend({silent: true}, options));
+        }
     };
+
+    _.extend(Collection.prototype, Events, {
+        // 应该被开发者覆盖
+        model: Model,
+        preinitialize: function () {
+        },
+        initialize: function () {
+        },
+        toJSON: function (options) {
+            return this.map(function (model) {
+                return model.toJSON(options);
+            });
+        },
+        sync: function () {
+            return Backbone.sync.apply(this, arguments);
+        },
+        reset: function (models, options) {
+            options = options ? _.clone(options) : {};
+            for (var i = 0; i < this.models.length; i++) {
+                this._removeReference()
+            }
+        },
+        _reset: function () {
+            this.length = 0;
+            this.models = [];
+            this._byId = {};
+        },
+        modelId: function (attrs) {
+            return attrs[this.model.prototype.idAttribute || 'id'];
+        },
+        // 移除model与collection的联系
+        _removeReference: function (model, options) {
+            delete this._byId[model.cid];
+            var id = this.modelId(model.attributes);
+            if (id != null) {
+                delete this._byId[id];
+            }
+        }
+    });
 
     // Backbone.View
     // ---------------
@@ -524,7 +586,7 @@
         });
         // 默认为json格式请求
         var params = {type: type, dataType: 'json'};
-        // 确保url存在
+        // 如果url不存在，则抛出异常
         if (!options.url) {
             params.url = _.result(model, 'url') || urlError();
         }

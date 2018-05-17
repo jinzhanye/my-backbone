@@ -23,26 +23,34 @@ Controller表示控制层，用来对原始数据（Model）进行加工，传�
 ## 设计模式
 - 装饰者模式
     - wrapError
+    借用jQuery Error 处理函数 1603 -> 包装错误处理函数 2018 -> 开发者的错误处理函数
 - eventApis iteree通用接口
 
-## backbone.Model对象
+## 其他插件
+
+## backbone对象
 ````js
 backbone.Model = {
- attributes:{bar: "I am Bar", color: "Blue", name: "Hello World", foo: "Hello git"},
- changed:{},
- cid:"c1",
- _changing:false,
- _events:{'change:color': Array(1)},
- _pending:false,
- _previousAttributes:{}   
+    attributes:{name: "Hello Kitty", color: "Blue", description: "Hello World"}, // 开发者的model对象
+    changed:{},  // 保存当前model相对于上一个版本model修改过的属性数据,第一次set，不需要changed数据。change 由设置属性/删除属性所触发
+    cid:"c1", // UUID
+    _changing:false,// 是否正在变化
+    _events:{'change:color': Array(5)}, // 事件回调队列
+    _pending:false,
+    _previousAttributes:{}// model变化之前的属性   
 }
 ````
 
+### model原型链
+
+###options对象有哪些属性？？
+
+
 ## 启动流程
 1. 识别环境
-1. 绑定jQuery、underscore
-1. extend
-
+1. 绑定jQuery、underscore 
+1. Back.Model.extend({foo:bar})获得一个继承自参数对象的构造函数
+    函数栈：extend内child闭包 -> Back.Model -> set
 
 ## Question
 - attributes与attrs的区别

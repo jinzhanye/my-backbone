@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>demo</title>
+    <style>
+        .tagC {
+            color: lightseagreen;
+        }
+
+        .bbqH {
+            cursor: pointer;
+        }
+
+        #sectionTwo {
+            background-color: lightseagreen;
+        }
+    </style>
+</head>
+<body>
+<section id="sectionOne">
+    <p>Lorem ipsum dolor sit amet, consectetur adipisicing elit. Ab accusamus adipisci cum delectus doloribus est
+        eveniet exercitationem facilis fugit maxime minima minus, molestias mollitia porro provident quam quasi
+        quibusdam quidem, quisquam ratione saepe sit tenetur unde vel voluptas voluptate voluptates voluptatibus. Atque
+        cupiditate esse odio praesentium quidem similique sunt unde.</p>
+</section>
+<section id="sectionTwo"></section>
+</body>
+
+<!--实际上，并不存在type="text/template"这样的标准写法，<template>元素的出现旨在让HTML模板HTML变得更加标准与规范。-->
+<script type="text/template" id="myTemplate">
+    <h1 class="bbqH">BBQ</h1>
+    <p>BBQ is a good action</p>
+</script>
+<script src="../jquery.js"></script>
+<script src="../underscore.js"></script>
+<!--<script src="../backbone.js"></script>-->
+<script src="../backbone-fe.js"></script>
+<!--<script src="../backbone-comment.js"></script>-->
+<script>
+    let User = Backbone.Model.extend({
+        defaults: {// 设置默认值
+            name: 'Jane',
+            color: 'Blue'
+        },
+        initialize() {//该函数会在model创建后执行
+            console.log('initialize');
+            this.bindEvents();
+        },
+        bindEvents() {
+            this.on('change:color', function (model, nextVal) {
+                console.log(model);
+//                console.log('color has change:', model.get('color'));
+                console.log('change to:', nextVal);
+            });
+        }
+    });
+
+    let UserCollection = Backbone.Collection.extend({
+        model: User,
+        initialize() {
+            console.log('collection initialize');
+            this.bindEvents();
+        },
+        bindEvents() {
+            this.on('change:name', (model) => {
+                console.log('Hey, the name changed:', model.get('name'));
+            });
+//            this.on('add', (model) => {
+//                console.log('add a student:', model.get('name'));
+//            });
+//            this.on('remove', (model) => {
+//                console.log('remove a student:', model.get('name'));
+//            });
+        }
+    });
+
+    $(document).ready(() => {
+        // 当创建model实例时，可以传入 属性 (attributes)初始值，这些值会被 set （设置）到 model
+        let userA = new User({name: 'John', tall: 190});
+//        console.log(userA);
+//        userA.set('color', 'Yellow');
+//        console.log(userA.changed);// {color: 'Yellow'}
+//        userA.set({firstName: 'K', color: 'Yellow'});
+//        console.log(userA.changed);// {firstName: 'K'}
+        let userB = new User({name: 'Paul', tall: 200});
+        let userCollection = new UserCollection([userA, userB]);
+
+        // 重写parse处理回调数据
+//        Backbone.Model.prototype.parse = function (resp, options) {
+//            return resp.data;
+//        };
+//        // ajax ,options 参数与 jQuery的一致， 因为内部最终调用了jQueryAjax
+//        model.fetch({
+//            url: 'http://localhost:8081/frame/countryList',
+//            success: function (model) {
+//                console.log('after fetch model:', model);
+//                console.log(model.changed);
+//                model.set({firstName: 'K'});
+//                console.log(model.changed);
+//            }
+//        })
+    });
+</script>
+</html>
