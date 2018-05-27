@@ -41,10 +41,11 @@
     let User = Backbone.Model.extend({
         defaults: {// 设置默认值
             name: 'Jane',
-            color: 'Blue'
+            color: 'Blue',
+            tall: 210
         },
         initialize() {//该函数会在model创建后执行
-            console.log('initialize');
+            console.log('model initialize');
             this.bindEvents();
         },
         bindEvents() {
@@ -63,12 +64,12 @@
             this.bindEvents();
         },
         bindEvents() {
-            this.on('change:name', (model) => {
+            this.on('change:name', (model, nextVal) => {
                 console.log('Hey, the name changed:', model.get('name'));
             });
-//            this.on('add', (model) => {
-//                console.log('add a student:', model.get('name'));
-//            });
+            this.on('add', (model) => {
+                console.log('add a student:', model.get('name'));
+            });
 //            this.on('remove', (model) => {
 //                console.log('remove a student:', model.get('name'));
 //            });
@@ -84,8 +85,29 @@
 //        userA.set({firstName: 'K', color: 'Yellow'});
 //        console.log(userA.changed);// {firstName: 'K'}
         let userB = new User({name: 'Paul', tall: 200});
-        let userCollection = new UserCollection([userA, userB]);
-
+        // 两个相同元素会被去重
+        let userCollection = new UserCollection([userA, userA, userB,
+            {// 还可以以普通的形式传参
+                name: 'James',
+                tall: 209
+            }], {
+            // 排序部分还没有抄，所以先注释
+            // sort默认为undefined，不用设置为true也可以排序
+            // 但是设置为false后，即使设置了comparator，也不能排序
+            // sort:false,
+            // 排序器
+//            comparator: function (userA, userB) {
+//                return userA.tall - userB.tall;
+//            }
+        });
+        console.log('user collection:', userCollection);
+        userA.set('name', 'Evan u');
+        console.log('get user at idx 1', userCollection.at(1));
+        console.log('get user by cid:', userCollection.get(userA.cid));
+        userCollection.add({
+            name: 'hello',
+            tall: 1.8
+        });
         // 重写parse处理回调数据
 //        Backbone.Model.prototype.parse = function (resp, options) {
 //            return resp.data;

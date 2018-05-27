@@ -269,6 +269,10 @@
     };
 
     _.extend(Model.prototype, Events, {
+        // 存储相对于上一次model变化的属性
+        changed: null,
+        // true:验证不通过 , false:验证失败
+        validationError: null,
         // The default name for the JSON `id` attribute is `"id"`. MongoDB and
         // CouchDB users may want to set this to `"_id"`.
         idAttribute: 'id',
@@ -528,6 +532,32 @@
             // 初始化时不需要触发change，所以设置silent:true
             this.reset(models, _.extend({silent: true}, options));
         }
+
+
+    };
+
+
+    var setOptions = {add: true, remove: true, merge: true};
+    var addOptions = {add: true, remove: false};
+
+
+    /**
+     *
+     *  在array数组的第at个位置插入insert数组
+     *  与ES5的splice方法的功能相似，但这里没有删除功能
+     *
+     * @param array {Array}
+     * @param insert {Array}
+     * @param at {Number}
+     */
+    var splice = function (array, insert, at) {
+        at = Math.min(Math.max(at, 0), array.length);
+        var tail = Array(array.length - at);
+        var length = insert.length;
+        var i;
+        for (i = 0; i < tail.length; i++) tail[i] = array[i + at];
+        for (i = 0; i < length; i++) array[i + at] = insert[i];
+        for (i = 0; i < tail.length; i++) array[i + length + at] = tail[i];
     };
 
     _.extend(Collection.prototype, Events, {
@@ -536,6 +566,130 @@
         preinitialize: function () {
         },
         initialize: function () {
+        },
+        // 增加一个/组模型，这个模型可以是backbone模型，也可以是用来生成backbone模型的js键值对象？
+        add: function (models, options) {
+            return this.set(models, _.extend({merge: false}, options, addOptions));
+        },
+        /**
+         * 返回索引为index的元素，index可为负数，表示倒数第index个元素
+         * @param index {number}
+         * @returns {*}
+         */
+        at: function (index) {
+            if (index < 0) {
+                index += this.length;
+            }
+            return this.models[index];
+        },
+        set: function (models, options) {
+            // options 长这样
+            // options = {
+            //     add: true,
+            //     merge: false,
+            //     remove: false,
+            //     previousModels: [],
+            //     silent: true
+            // }
+            if (models == null) {
+                return;
+            }
+
+            // 无论是添加单个model还是一组model，都统一用一组model处理
+            var singular = !_.isArray(models);
+            // models.slice() 相当于浅克隆一个数组
+            models = singular ? [models] : models.slice();
+
+
+            // TODO at这段还没抄
+            // 处理at，确保at为合理的数字
+            var at = options.at;
+
+            // set表示经过本次处理后应当存在于this.models中的model
+            var set = [];
+            //存储本次操作增加的model数组
+            var toAdd = [];
+            // 本次操后修改的model数组
+            var toMerge = [];
+            // 本次操作删除的models
+            var toRemove = [];
+            // modelMap是本次变化后的应该存在于Collection中的models的key集合
+            var modelMap = {};
+
+            var add = options.add;
+            var merge = options.merge;
+            var remove = options.remove;
+
+            var sort = false;
+            // 标志是否可以排序
+            // this.comparator是开发者传进来的排序方法
+            var sortable = this.comparator && at == null && options.sort !== false;
+
+            var sortAttr = _.isString(this.comparator) ? this.comparator : null;
+
+            var model, i;
+            for (i = 0; i < models.length; i++) {
+                model = models[i];
+                var existing = this.get(model);
+                if (existing) {
+
+                } else if (add) {
+                    // _prepareModel将原始对象转化为Model实例，并建立model到collection的引用
+                    model = models[i] = this._prepareModel(model, options);
+                    if (model) {
+                        toAdd.push(model);
+                        // 将model和collections建立联系
+                        this._addReference(model, options);
+                        modelMap[model.cid] = true;
+                        set.push(model);
+                    }
+                }
+            }// for end
+
+            // TODO
+            if (remove) {
+
+            }
+
+            var orderChanged = false;
+
+            // 如果是增加模式，remove是false
+            var replace = !sortable && add && remove;
+
+            if (set.length && replace) {// TODO
+
+            } else if (toAdd.length) {
+                if (sortable) {
+                    sort = true;
+                }
+                splice(this.models, toAdd, at == null ? this.length : at);
+                this.length = this.models.length;
+            }
+
+            if (sort) {// TODO
+                this.sort({silent: true});
+            }
+
+            // 非silent情况下，触发add/sort/update事件
+            if (!options.silent) {
+
+            }
+
+            // Return the added (or merged) model (or models).
+            return singular ? models[0] : models;
+        },
+        /**
+         *  通过id或cid获取Collection里对应的model
+         * @param obj { String | Object }
+         * @returns {*}
+         */
+        get: function (obj) {
+            if (obj == null) {
+                return void 0;
+            }
+            return this._byId[obj] ||//如果obj为cid或者id
+                this._byId[this.modelId(this._isModel(obj) ? obj.attributes : obj)] ||//如果obj是一个对象
+                obj.cid && this._byId[obj.cid];
         },
         toJSON: function (options) {
             return this.map(function (model) {
@@ -548,16 +702,70 @@
         reset: function (models, options) {
             options = options ? _.clone(options) : {};
             for (var i = 0; i < this.models.length; i++) {
-                this._removeReference()
+                this._removeReference(this.models[i], options);
             }
+            options.previousModels = this.models;
+            this._reset();
+            // Collection初始化不需要触发change事件，所以silent: true
+            models = this.add(models, _.extend({silent: true}));
+            if (!options.silent) {
+                this.trigger('reset', this, options);
+            }
+            return models;
         },
         _reset: function () {
             this.length = 0;
             this.models = [];
             this._byId = {};
+            // _byId:{
+            //     'cid1':{},//后面跟对应的model
+            //     'cid2':{},
+            // }
+        },
+
+        /* Prepare a hash of attributes(or other model) to be added to this
+        *  使用场景
+        *  比如以下userCollection，构造函数列表参数中既可以是一个model如modelUserA，也可以是一个普通的对象如James。
+        *  此函数就是用作将普通的对象转化成model
+        *
+          let userCollection = new UserCollection([modelUserA,
+                {// 还可以以普通的形式传参
+                    name: 'James',
+                    tall: 209
+                }]
+            );
+        * */
+        _prepareModel: function (attrs, options) {
+            // Collection里每个model都有一个collection属性指向该Collection，方便开发者调用
+            // 如果attrs是model，则关联Collection后返回attrs，如modelUserA
+            if (this._isModel(attrs)) {
+                if (!attrs.collection) {//
+                    attrs.collection = this;
+                }
+                return attrs;
+            }
+            options = options ? _.clone(options) : {};
+            options.collection = this;
+            var model = new this.model(attrs, options);
+            if (!model.validationError) {
+                return model;
+            }
+            this.trigger('invalid', this, model.validationError, options);
+            return false;
         },
         modelId: function (attrs) {
             return attrs[this.model.prototype.idAttribute || 'id'];
+        },
+        _isModel: function (model) {
+            return model instanceof Model;
+        },
+        _addReference: function (model, options) {
+            this._byId[model.cid] = model;
+            var id = this.modelId(model.attributes);
+            if (id != null) {
+                this._byId[id] = model;
+            }
+            model.on('all', this._onModelEvent, this);
         },
         // 移除model与collection的联系
         _removeReference: function (model, options) {
@@ -566,6 +774,18 @@
             if (id != null) {
                 delete this._byId[id];
             }
+        },
+
+        _onModelEvent: function (event, model, collection, options) {
+            if (model) {
+                if ((event === 'add' || event === 'remove') && collection !== this) {
+                    return;
+                }
+                if (event === 'destroy') {
+                    this.remove(model, options);
+                }
+            }
+            this.trigger.apply(this, arguments);
         }
     });
 
