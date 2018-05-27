@@ -1,0 +1,31 @@
+{
+  "name": "my-backbone",
+  "version": "1.0.0",
+  "description": "## Model Model表示数据层，也就是程序需要的数据源，通常使用JSON格式表示。",
+  "main": "backbone-comment.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "jest",
+    "tdd": "jest --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jinzhanye/my-backbone.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jinzhanye/my-backbone/issues"
+  },
+  "homepage": "https://github.com/jinzhanye/my-backbone#readme",
+  "dependencies": {
+    "backbone": "^1.3.3",
+    "jquery": "^3.3.1",
+    "underscore": "^1.9.0"
+  },
+  "devDependencies": {
+    "jest": "^23.0.0"
+  }
+}
