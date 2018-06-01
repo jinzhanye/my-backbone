@@ -8,3 +8,6 @@ npm run test -- --coverage
 
 ## TODO
 - snapshot
+
+## 坑
+jest调试命令 node --inspect --inspect-brk node_modules/bin/jest 要在node 8.4以上运行才有效。webstorm调试内部也是调用了这个命令，所以系统安装的node版本一定要注意
