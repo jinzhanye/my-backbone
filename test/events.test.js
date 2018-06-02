@@ -109,10 +109,30 @@ describe('Backbone.Events', () => {
             }
         }, context).trigger('a');// 源代码第99行，将原来第二参数为callback处理为context
 
-        obj.off().on({
-            a: function () {
-                expect(this).toBe(context);
-            }
-        }, this, context).trigger('a');// 源代码第118行处理context参数
+        obj.off()
+            .on({
+                a: function () {
+                    expect(this).toBe(context);
+                }
+            }, this, context).trigger('a');// 源代码第118行处理context参数
+        // TODO node环境下上面的this指的是？？
+    });
+
+    it('listenTo and stopListening', () => {
+        expect.assertions(1);
+        let a = _.extend({}, Backbone.Events);
+        let b = _.extend({}, Backbone.Events);
+        // *为什么Backbone.Events会有listenTo和stopListening,在很多的类库中使用的事件机制都是没有这两个方法的功能。
+        // 这两个方法更像是专为view,model而生的。
+        // 通过这两个方法可以方便的对view相关的对象监听事件进行跟踪，解绑。
+        a.listenTo(b, 'all', function () {
+            expect(true).toBeTruthy();
+        });
+        b.trigger('anything');
+        a.listenTo(b, 'all', function () {
+            expect(false).toBeTruthy();
+        });
+        a.stopListening();
+        b.trigger('anything');
     });
 });

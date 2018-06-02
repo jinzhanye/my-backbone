@@ -62,7 +62,10 @@
     // Backbone.Events
     // ---------------
     var Events = Backbone.Events = {};
+    // Regular expression used to split event strings.
     var eventSplitter = /\s+/;
+    // A private global variable to share between listeners and listenees.
+    var _listening;
 
     /** 先进行事件参数修正(与zepto相似)，然后将修正后的参数放到iteratee方法中执行。
      * @param iteratee {Function} 注册事件 onApi,onceApi / 触发事件 triggerApi /解绑事件 offApi
@@ -98,26 +101,60 @@
     };
 
     Events.on = function (name, callback, context) {
-        return internalOn(this, name, callback, context);
+        this._events = eventsApi(onApi, this._events || {}, name, callback, {
+            context: context,
+            ctx: this,
+            listening: _listening
+        });
+
+        if (_listening) {
+            var listeners = this._listeners || (this._listeners = {});
+            listeners[_listening.id] = _listening;
+            // TODO 下面是什么意思????
+            // Allow the listening to use a counter, instead of tracking
+            // callbacks for library interop
+            _listening.interop = false;
+        }
+
+        return this;
     };
 
     /**
      *
-     *  有可能被 on、listenTo 调用
-     *
-     * @param obj {Object}  被监听对象
-     * @param name
-     * @param callback
-     * @param context {*} 开发者指定的执行上下文
-     * @param listening  当internalOn被listenTo调用时才存在。
+     * @param obj 被监听对象
+     * @param name 事件名称
+     * @param callback 回调函数
+     * @returns {Events}
      */
-    var internalOn = function (obj, name, callback, context, listening) {
-        obj._events = eventsApi(onApi, obj._events || {}, name, callback, {
-            context: context,
-            ctx: obj,
-            listening: listening
-        });
-        return obj;
+    Events.listenTo = function (obj, name, callback) {
+        if (!obj) {
+            return this;
+        }
+        // _.uniqueId:为被监听对象生成一个唯一的id,这个id以l开头，这个id在触发的时候会被用到
+        var id = obj._listenId || (obj._listenId = _.uniqueId('l'));
+        // 初始化_listeningTo对象
+        var listeningTo = this._listeningTo || (this._listeningTo = {});
+        // _listening
+        var listening = _listening = listeningTo[id];
+
+        if (!listening) {
+            this._listenId || (this._listenId = _.uniqueId('l'));
+            listening = _listening = listeningTo[id] = new Listening(this, obj);
+        }
+
+        // 在被监听对象上绑定回调函数，将源对象作为context
+        var error = tryCatchOn(obj, name, callback, this);
+        _listening = void 0;
+
+        if (error) {
+            throw error;
+        }
+        // 如果被监听对象不是Backbone.Events对象，那么手动跟踪事件
+        if (listening.interop) {
+            listening.on(name, callback);
+        }
+
+        return this;
     };
 
     /**
@@ -151,6 +188,22 @@
     };
 
     /**
+     * 防止`_listening`全局变量被污染
+     * @param obj
+     * @param name
+     * @param callback
+     * @param context
+     * @returns {*}
+     */
+    var tryCatchOn = function (obj, name, callback, context) {
+        try {
+            obj.on(name, callback, context);
+        } catch (e) {
+            return e;
+        }
+    };
+
+    /**
      * Remove one or many callbacks. If `context` is null,
      * removes all callbacks with that function. If `callback` is null,
      * removes all callbacks for the event. If `name` is null, removes all bound
@@ -177,6 +230,41 @@
 
         return this;
     };
+
+    /**
+     *  解除监听指定的的事件，或者解除当前对象对所有其他对象的监听
+     * @param obj 被监听对象
+     * @param name 事件名
+     * @param callback 回调函数
+     * @returns {Events}
+     */
+    Events.stopListening = function (obj, name, callback) {
+        var listeningTo = this._listeningTo;
+        if(!listeningTo){
+            return this;
+        }
+
+        var ids = obj ? [obj._listenId] : _.keys(listeningTo);
+        for(var i = 0; i < ids.length; i++){
+            var listening = listeningTo[ids[i]];
+            // If listening doesn't exist, this object iifs not currently
+            // listening to obj. Break out early.
+            if(!listening){
+                break;
+            }
+            // 调用被监听对象上的off方法
+            listening.obj.off(name, callback, this);
+            // // TODO ??
+            // if(listening.interop){
+            //     listening.off(name, callback);
+            // }
+        }
+        if(_.isEmpty(listeningTo)){
+            this._listeningTo = void 0;
+        }
+
+        return this;
+    }
 
     var offApi = function (events, name, callback, options) {
         if (!events) {
@@ -206,23 +294,23 @@
             }
 
             var remaining = [];
-            for(var j = 0; j < handlers.length; j++){
+            for (var j = 0; j < handlers.length; j++) {
                 var handler = handlers[i];
                 //  这里要判断什么？？
-                if(
+                if (
                     callback && callback !== handler.callback &&
                     callback !== handler.callback._callback ||
                     context && context !== handler.context
-                ){
+                ) {
 
-                }else {
+                } else {
 
                 }
             }// inner for end
 
-            if(remaining.length){
+            if (remaining.length) {
                 events[name] = remaining;
-            }else {
+            } else {
                 delete events[name];
             }
         }// outer for end
@@ -316,6 +404,25 @@
         }
     };
 
+    /**
+     *
+     * @param listener 进行监听的对象
+     * @param obj 被监听对象
+     * @constructor
+     */
+    var Listening = function (listener, obj) {
+        this.id = listener._listenId;
+        this.listener = listener;
+        this.obj = obj;
+        // 互操作性（英文：Interoperability；中文又称为：协同工作能力，互用性）作为一种特性，它指的是不同的系统和组织机构之间相互合作，协同工作（即互操作）的能力。
+        this.interop = true;
+        // 统计被监听对象绑定事件handler的数量
+        this.count = 0;
+        // ??
+        this._events = void 0;
+    };
+
+    Listening.prototype.on = Events.on;
     // Backbone.Model
     // ---------------
 
