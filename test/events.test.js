@@ -193,4 +193,162 @@ describe('Backbone.Events', () => {
         expect(obj.counterA).toBe(1);
         expect(obj.counterA).toBe(1);
     });
+
+    it('listenToOnce and stopListening', () => {
+        expect.assertions(1);
+        let a = _.extend({}, Backbone.Events);
+        let b = _.extend({}, Backbone.Events);
+        a.listenToOnce(b, 'all', function () {
+            expect(true).toBeTruthy();
+        });
+        b.trigger('anything');
+        b.trigger('anything');
+        a.listenToOnce(b, 'all', function () {
+            expect(false).toBeTruthy();
+        });
+        a.stopListening();
+        b.trigger('anything');
+    });
+
+    it('listenTo and stopListening with event maps', () => {
+        expect.assertions(1);
+        let a = _.extend({}, Backbone.Events);
+        let b = _.extend({}, Backbone.Events);
+        a.listenToOnce(b, {
+            change: function () {
+                expect(true).toBeTruthy();
+            }
+        });
+        b.trigger('change');
+        a.listenToOnce(b, {
+            change: function () {
+                expect(false).toBeTruthy();
+            }
+        });
+        a.stopListening();
+        b.trigger('change');
+    });
+
+    it('listenTo yourself', () => {
+        expect.assertions(1);
+        let a = _.extend({}, Backbone.Events);
+        a.listenTo(a, 'foo', function () {
+            expect(true).toBeTruthy();
+        });
+        a.trigger('foo');
+    });
+
+    it('listenTo yourself cleans yourself up with stopListening', () => {
+        expect.assertions(1);
+        let a = _.extend({}, Backbone.Events);
+        a.listenTo(a, 'foo', function () {
+            expect(true).toBeTruthy();
+        });
+        a.trigger('foo');
+        a.stopListening();
+        a.trigger('foo');
+    });
+
+    it('stopListening cleans up references', () => {
+        expect.assertions(12);
+        let a = _.extend({}, Backbone.Events);
+        let b = _.extend({}, Backbone.Events);
+        var fn = function () {
+        };
+        b.on('event', fn);
+        //
+        a.listenTo(b, 'event', fn).stopListening();
+        expect(_.size(a._listeningTo)).toBe(0);
+        expect(_.size(b._events.event)).toBe(1);
+        expect(_.size(b._listeners)).toBe(0);
+        //
+        a.listenTo(b, 'event', fn).stopListening(b);
+        expect(_.size(a._listeningTo)).toBe(0);
+        expect(_.size(b._events.event)).toBe(1);
+        expect(_.size(b._listeners)).toBe(0);
+        //
+        a.listenTo(b, 'event', fn).stopListening(b, 'event');
+        expect(_.size(a._listeningTo)).toBe(0);
+        expect(_.size(b._events.event)).toBe(1);
+        expect(_.size(b._listeners)).toBe(0);
+        //
+        a.listenTo(b, 'event', fn).stopListening(b, 'event', fn);
+        expect(_.size(a._listeningTo)).toBe(0);
+        expect(_.size(b._events.event)).toBe(1);
+        expect(_.size(b._listeners)).toBe(0);
+    });
+
+    it('stopListening cleans up references from listenToOnce', () => {
+        expect.assertions(12);
+        let a = _.extend({}, Backbone.Events);
+        let b = _.extend({}, Backbone.Events);
+        var fn = function () {
+        };
+        b.on('event', fn);
+        //
+        a.listenToOnce(b, 'event', fn).stopListening();
+        expect(_.size(a._listeningTo)).toBe(0);
+        expect(_.size(b._events.event)).toBe(1);
+        expect(_.size(b._listeners)).toBe(0);
+        //
+        a.listenToOnce(b, 'event', fn).stopListening(b);
+        expect(_.size(a._listeningTo)).toBe(0);
+        expect(_.size(b._events.event)).toBe(1);
+        expect(_.size(b._listeners)).toBe(0);
+        //
+        a.listenToOnce(b, 'event', fn).stopListening(b, 'event');
+        expect(_.size(a._listeningTo)).toBe(0);
+        expect(_.size(b._events.event)).toBe(1);
+        expect(_.size(b._listeners)).toBe(0);
+        //
+        a.listenToOnce(b, 'event', fn).stopListening(b, 'event', fn);
+        expect(_.size(a._listeningTo)).toBe(0);
+        expect(_.size(b._events.event)).toBe(1);
+        expect(_.size(b._listeners)).toBe(0);
+    });
+
+    it('listenTo and off cleaning up references', () => {
+        expect.assertions(8);
+        let a = _.extend({}, Backbone.Events);
+        let b = _.extend({}, Backbone.Events);
+        var fn = function () {
+        };
+        b.on('event', fn);
+        //
+        a.listenToOnce(b, 'event', fn);
+        b.off();
+        expect(_.size(a._listeningTo)).toBe(0);
+        expect(_.size(b._listeners)).toBe(0);
+        //
+        a.listenToOnce(b, 'event', fn);
+        b.off('event');
+        expect(_.size(a._listeningTo)).toBe(0);
+        expect(_.size(b._listeners)).toBe(0);
+        //
+        a.listenToOnce(b, 'event', fn);
+        b.off(null, fn);
+        expect(_.size(a._listeningTo)).toBe(0);
+        expect(_.size(b._listeners)).toBe(0);
+        //
+        a.listenToOnce(b, 'event', fn);
+        b.off(null, null, a);
+        expect(_.size(a._listeningTo)).toBe(0);
+        expect(_.size(b._listeners)).toBe(0);
+    });
+
+    it('listenTo and stopListening cleaning up references', () => {
+        expect.assertions(2);
+        let a = _.extend({}, Backbone.Events);
+        let b = _.extend({}, Backbone.Events);
+        a.listenTo(b, 'all', function () {
+            expect(true).toBeTruthy();
+        });
+        b.trigger('anything');
+        a.listenTo(b, 'other', function () {
+            expect(false).toBeTruthy();
+        });
+        a.stopListening(b, 'other');
+        a.stopListening(b, 'all');
+        expect(_.size(a._listeningTo)).toBe(0);
+    });
 });

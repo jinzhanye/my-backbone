@@ -295,7 +295,6 @@
             var remaining = [];
             for (var j = 0; j < handlers.length; j++) {
                 var handler = handlers[j];
-                //  这里要判断什么？？
                 if (
                     // 指定的callback与该handler的callback不相符，所以就当保留这个handler
                     callback && callback !== handler.callback &&

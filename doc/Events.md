@@ -25,3 +25,10 @@
         this._events = void 0;
     };
 ````
+a._listenTo与b._listeners指向同一个listening对象
+
+## 借鉴
+````js
+// 统一用数组包装事件名
+var names = name ? [name] : _.keys(events);
+````
