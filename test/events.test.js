@@ -152,4 +152,45 @@ describe('Backbone.Events', () => {
         a.stopListening();// 解除a监听b的event事件
         b.trigger('event event2');// 触发event2，所以共触发cb次数：1 + 2 + 1 = 4
     });
+
+    it('stopListening with omitted args', () => {
+        expect.assertions(2);
+        let a = _.extend({}, Backbone.Events);
+        let b = _.extend({}, Backbone.Events);
+        let cb = function () {
+            expect(true).toBeTruthy();
+        };
+        a.listenTo(b, 'event', cb);
+        a.listenTo(b, 'event2', cb);
+        b.on('event', cb);
+        a.stopListening(null, {event: cb});
+
+        b.trigger('event event2');// 2次触发 , b.on('event', cb); a.listenTo(b, 'event2', cb);
+
+        b.off();
+        a.listenTo(b, 'event event2', cb);
+        a.stopListening(null, 'event');
+        a.stopListening();
+
+        b.trigger('event2');//0
+    });
+
+    it('listenToOnce', () => {
+        // Same as the previous test, but we use once rather than having to explicitly unbind
+        expect.assertions(2);
+        let obj = {counterA: 0, counterB: 0};
+        _.extend(obj, Backbone.Events);
+        let incrA = function () {
+            obj.counterA += 1;
+            obj.trigger('event');
+        };
+        let incrB = function () {
+            obj.counterB += 1;
+        };
+        obj.listenToOnce(obj, 'event', incrA);
+        obj.listenToOnce(obj, 'event', incrB);
+        obj.trigger('event');
+        expect(obj.counterA).toBe(1);
+        expect(obj.counterA).toBe(1);
+    });
 });

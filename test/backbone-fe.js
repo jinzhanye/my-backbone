@@ -231,7 +231,7 @@
     };
 
     /**
-     *  解除监听指定的的事件，或者解除当前对象对所有其他对象的监听
+     *  解除监听指定的的事件，或者当obj求值为false时解除当前对象对所有其他对象的监听
      * @param obj 被监听对象
      * @param name 事件名
      * @param callback 回调函数
@@ -299,6 +299,7 @@
                 if (
                     // 指定的callback与该handler的callback不相符，所以就当保留这个handler
                     callback && callback !== handler.callback &&
+                    // 当调用listenToOnce绑定事件时，once作为代理的回调函数(见onceMap函数)，真正的回调函数绑定在once._callback，所以这里还要进行一次比较
                     callback !== handler.callback._callback ||
                     // 指定的context与该handler的context不相符，所以就当保留这个handler
                     context && context !== handler.context
@@ -320,6 +321,39 @@
             }
         }// outer for end
         return events;
+    };
+
+    Events.once = function (name, callback, context) {
+
+    };
+
+    Events.listenToOnce = function (obj, name, callback) {
+        // 注意this.stopListening.bind这里的bind的原生js的bind方法，不是Backbone提供的事件bind方法
+        var events = eventsApi(onceMap, {}, name, callback, this.stopListening.bind(this, obj));
+        return this.listenTo(obj, events);
+    };
+
+    /**
+     *Reduces the event callbacks into a map of `{event: onceWrapper}`.
+        `offer` unbinds the `onceWrapper` after it has been called.
+     * @param map
+     * @param name
+     * @param callback
+     * @param offer stopListening
+     * @returns {*}
+     */
+    var onceMap = function (map, name, callback, offer) {
+        if (callback) {
+            // _.once(function) 返回一个只能调用一次的函数,二次调用不会起作用
+            var once = map[name] = _.once(function () {
+                // 解除绑定
+                offer(name, once);
+                // 执行回调
+                callback.apply(this, arguments);
+            });
+            once._callback = callback;
+        }
+        return map;
     };
 
     /** 触发一个或多个事件
