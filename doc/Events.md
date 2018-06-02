@@ -4,6 +4,8 @@
 注册事件 onApi,onceApi / 触发事件 triggerApi /解绑事件 offApi 这些api共同使用了eventsApi做参数纠正，节省大量代码
 
 ## listening 对象
+为什么Backbone.Events会有listenTo和stopListening,在很多的类库中使用的事件机制都是没有这两个方法的功能。
+这两个方法更像是专为view,model而生的。通过这两个方法可以方便的对view相关的对象监听事件进行跟踪，解绑。
 ````js
 /**
      *

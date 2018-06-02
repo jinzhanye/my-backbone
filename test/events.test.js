@@ -135,4 +135,21 @@ describe('Backbone.Events', () => {
         a.stopListening();
         b.trigger('anything');
     });
+
+    it('listenTo and stopListening with event maps', () => {
+        expect.assertions(4);
+        let a = _.extend({}, Backbone.Events);
+        let b = _.extend({}, Backbone.Events);
+        let cb = function () {
+            expect(true).toBeTruthy();
+        };
+        a.listenTo(b, {event: cb});
+        b.trigger('event');// 1
+        a.listenTo(b, {event2: cb});
+        b.on('event2', cb);
+        a.stopListening(b, {event2: cb});// 只解除a监听b的cb，b监听event2不会被解除
+        b.trigger('event event2');//event有一个handle event2有一个handle，所以callback触发 2次
+        a.stopListening();// 解除a监听b的event事件
+        b.trigger('event event2');// 触发event2，所以共触发cb次数：1 + 2 + 1 = 4
+    });
 });

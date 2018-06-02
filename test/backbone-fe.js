@@ -120,7 +120,7 @@
     };
 
     /**
-     *
+     *  调用方式a.listenTo(b, {event: cb}); 或者 a.listenTo(b, 'event',cb);
      * @param obj 被监听对象
      * @param name 事件名称
      * @param callback 回调函数
@@ -130,7 +130,7 @@
         if (!obj) {
             return this;
         }
-        // _.uniqueId:为被监听对象生成一个唯一的id,这个id以l开头，这个id在触发的时候会被用到
+        // _.uniqueId:为被监听对象生成一个唯一的全局id,这个id以l开头，这个id在触发的时候会被用到
         var id = obj._listenId || (obj._listenId = _.uniqueId('l'));
         // 初始化_listeningTo对象
         var listeningTo = this._listeningTo || (this._listeningTo = {});
@@ -224,7 +224,6 @@
         }
         this._events = eventsApi(offApi, this._events, name, callback, {
             context: context,
-            // TODO _listeners ??
             listeners: this._listeners
         });
 
@@ -240,16 +239,16 @@
      */
     Events.stopListening = function (obj, name, callback) {
         var listeningTo = this._listeningTo;
-        if(!listeningTo){
+        if (!listeningTo) {
             return this;
         }
 
         var ids = obj ? [obj._listenId] : _.keys(listeningTo);
-        for(var i = 0; i < ids.length; i++){
+        for (var i = 0; i < ids.length; i++) {
             var listening = listeningTo[ids[i]];
             // If listening doesn't exist, this object iifs not currently
             // listening to obj. Break out early.
-            if(!listening){
+            if (!listening) {
                 break;
             }
             // 调用被监听对象上的off方法
@@ -259,12 +258,12 @@
             //     listening.off(name, callback);
             // }
         }
-        if(_.isEmpty(listeningTo)){
+        if (_.isEmpty(listeningTo)) {
             this._listeningTo = void 0;
         }
 
         return this;
-    }
+    };
 
     var offApi = function (events, name, callback, options) {
         if (!events) {
@@ -295,19 +294,25 @@
 
             var remaining = [];
             for (var j = 0; j < handlers.length; j++) {
-                var handler = handlers[i];
+                var handler = handlers[j];
                 //  这里要判断什么？？
                 if (
+                    // 指定的callback与该handler的callback不相符，所以就当保留这个handler
                     callback && callback !== handler.callback &&
                     callback !== handler.callback._callback ||
+                    // 指定的context与该handler的context不相符，所以就当保留这个handler
                     context && context !== handler.context
                 ) {
-
+                    remaining.push(handler);
                 } else {
-
+                    var listening = handler.listening;
+                    if (listening) {
+                        listening.off(name, callback);
+                    }
                 }
             }// inner for end
 
+            // Replace events if there are any remaining.  Otherwise, clean up.
             if (remaining.length) {
                 events[name] = remaining;
             } else {
@@ -423,6 +428,37 @@
     };
 
     Listening.prototype.on = Events.on;
+
+    Listening.prototype.off = function (name, callback) {
+        var cleanup;
+        // TODO
+        if (this.interop) {
+
+        } else {
+            this.count--;
+            cleanup = this.count === 0;
+        }
+        if (cleanup) {
+            this.cleanup();
+        }
+    };
+
+    Listening.prototype.cleanup = function () {
+        // 在监听对象上删除对应id的listener
+        delete this.listener._listeningTo[this.obj._listenId];
+        if (!this.interop) {
+            // 在被监听上删除对应id的listener
+            delete this.obj._listeners[this.id];
+        }
+    };
+
+    Events.bind = Events.on;
+    Events.unbind = Events.off;
+
+    // Allow the `Backbone` object to serve as a global event bus, for folks who
+    // want global "pubsub" in a convenient place.
+    _.extend(Backbone, Events);
+
     // Backbone.Model
     // ---------------
 
