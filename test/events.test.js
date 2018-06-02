@@ -95,4 +95,24 @@ describe('Backbone.Events', () => {
         obj.trigger('a b c');
         expect(obj.counter).toBe(5);
     });
+
+    it('binding and trigger with event maps context', () => {
+        expect.assertions(2);
+        let obj = {counter: 0};
+        let context = {color: 'blue'};
+        _.extend(obj, Backbone.Events);
+
+        // 当以对象的方式绑定事件时，context时既可以是第二个参数，也可以是第三个参数(这种情况下第二个参数会被忽略)
+        obj.on({
+            a: function () {
+                expect(this).toBe(context);
+            }
+        }, context).trigger('a');// 源代码第99行，将原来第二参数为callback处理为context
+
+        obj.off().on({
+            a: function () {
+                expect(this).toBe(context);
+            }
+        }, this, context).trigger('a');// 源代码第118行处理context参数
+    });
 });

@@ -85,7 +85,8 @@
         } else if (name && eventSplitter.test(name)) {
             // 处理model.on("change remove", common_callback);
             for (names = name.split(eventSplitter); i < names.length; i++) {
-                // TODO 为什么用要events对象接收返回的值，events在被调用过程也会被污染，例如当iteratee为offApi，会被delete events[name]
+                // events在被调用过程会被污染,为什么还要events对象接收返回的值?
+                // 因为如果events在iteratee内部指向其他对象，那么将影响不到eventsApi这里的events，所以需要用events接收
                 events = iteratee(events, names[i], callback, opts);
             }
         } else {
@@ -182,16 +183,19 @@
             return;
         }
 
-        var i = 0, listening;
         var context = options.context, listeners = options.listeners;
+        var i = 0, names;
 
-        // TODO delete all events
+        // Delete all event listeners and "drop" events.
         if (!name && !callback && !context) {
-
+            for (names = _.keys(listeners); i < names.length; i++) {
+                listeners[names[i]].cleanup();
+            }
+            return;
         }
 
         // 统一用数组包装事件名
-        var names = name ? [name] : _.key(events);
+        var names = name ? [name] : _.keys(events);
         for (; i < names.length; i++) {
             name = names[i];
             var handlers = events[name];
