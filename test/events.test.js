@@ -115,7 +115,6 @@ describe('Backbone.Events', () => {
                     expect(this).toBe(context);
                 }
             }, this, context).trigger('a');// 源代码第118行处理context参数
-        // TODO node环境下上面的this指的是？？
     });
 
     it('listenTo and stopListening', () => {
@@ -351,4 +350,33 @@ describe('Backbone.Events', () => {
         a.stopListening(b, 'all');
         expect(_.size(a._listeningTo)).toBe(0);
     });
+
+    it('listenTo with empty callback doesn\'t throw an error', () => {
+        expect.assertions(1);
+        let e = _.extend({}, Backbone.Events);
+        e.listenTo(e, 'foo', null);
+        e.trigger('foo');
+        expect(true).toBeTruthy();
+    });
+
+    it('bind a callback with a default context when none supplied', () => {
+        expect.assertions(1);
+        let obj = _.extend({
+            assertTrue: function () {
+                expect(this).toBe(obj)
+            }
+        }, Backbone.Events);
+
+        obj.once('event', obj.assertTrue);
+        obj.trigger('event');
+    });
+
+    it('if callback is truthy but not a function, `on` should throw an error just like jQuery', () => {
+        expect.assertions(1);
+        var view = _.extend({}, Backbone.Events).on('test', 'noop');
+        expect(() => {
+            view.trigger('test');
+        }).toThrow();
+    });
+
 });

@@ -110,7 +110,6 @@
         if (_listening) {
             var listeners = this._listeners || (this._listeners = {});
             listeners[_listening.id] = _listening;
-            // TODO 下面是什么意思????
             // Allow the listening to use a counter, instead of tracking
             // callbacks for library interop
             _listening.interop = false;
@@ -166,6 +165,7 @@
      * @param options
      */
     var onApi = function (events, name, callback, options) {
+        // 防御callback为空，见测试用例 'listenTo with empty callback doesn't throw an error'
         if (callback) {
             var handlers = events[name] || (events[name] = []);
             var context = options.context,
@@ -179,6 +179,8 @@
             handlers.push({
                 callback: callback,
                 context: context,
+                // 如果开发者没有传入context，则以绑定事件的对象作为context
+                // 见测试用例 'bind a callback with a default context when none supplied'
                 ctx: context || ctx,
                 listening: listening
             });
@@ -253,10 +255,10 @@
             }
             // 调用被监听对象上的off方法
             listening.obj.off(name, callback, this);
-            // // TODO ??
-            // if(listening.interop){
-            //     listening.off(name, callback);
-            // }
+            // TODO ??
+            if (listening.interop) {
+                listening.off(name, callback);
+            }
         }
         if (_.isEmpty(listeningTo)) {
             this._listeningTo = void 0;
@@ -323,9 +325,21 @@
     };
 
     Events.once = function (name, callback, context) {
-
+        // Map the event into a `{event: once}` object.
+        var events = eventsApi(onceMap, {}, name, callback, this.off.bind(this));
+        // 下面这个if为什么这么做??
+        if (typeof name === 'string' && context == null) {
+            callback = void 0;
+        }
+        return this.on(events, callback, context);
     };
 
+    /**  'once' 方法 的控制反转版本
+     * @param obj
+     * @param name
+     * @param callback
+     * @returns {Events}
+     */
     Events.listenToOnce = function (obj, name, callback) {
         // 注意this.stopListening.bind这里的bind的原生js的bind方法，不是Backbone提供的事件bind方法
         var events = eventsApi(onceMap, {}, name, callback, this.stopListening.bind(this, obj));
@@ -334,11 +348,11 @@
 
     /**
      *Reduces the event callbacks into a map of `{event: onceWrapper}`.
-        `offer` unbinds the `onceWrapper` after it has been called.
+     `offer` unbinds the `onceWrapper` after it has been called.
      * @param map
      * @param name
      * @param callback
-     * @param offer stopListening
+     * @param offer stopListening方法 或者 off 方法
      * @returns {*}
      */
     var onceMap = function (map, name, callback, offer) {
@@ -453,6 +467,7 @@
         this.listener = listener;
         this.obj = obj;
         // 互操作性（英文：Interoperability；中文又称为：协同工作能力，互用性）作为一种特性，它指的是不同的系统和组织机构之间相互合作，协同工作（即互操作）的能力。
+        // 这是新版本加上的，还不清楚用法，1.3.3版本是还没有的
         this.interop = true;
         // 统计被监听对象绑定事件handler的数量
         this.count = 0;
@@ -464,9 +479,13 @@
 
     Listening.prototype.off = function (name, callback) {
         var cleanup;
-        // TODO
+        // TODO interop???
         if (this.interop) {
-
+            this._events = eventsApi(offApi, this._events, name, callback, {
+                context: void 0,
+                listeners: void 0
+            });
+            cleanup = !this._events;
         } else {
             this.count--;
             cleanup = this.count === 0;
