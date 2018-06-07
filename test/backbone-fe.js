@@ -548,6 +548,18 @@
         render: function () {
             return this;
         },
+
+        remove: function () {
+            this._removeElement();
+            this.stopListening();
+            return this;
+        },
+
+        _removeElement: function () {
+            // 在Document中移除DOM对象，其他的比如绑定的事件、附加的数据等都会被移除
+            this.$el.remove();
+        },
+
         /**
          *
          * @param element {Object} 原生DOM节点

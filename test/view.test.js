@@ -147,4 +147,75 @@ describe('Backbone.View', () => {
         View = Backbone.View.extend({el: '#nonexistent'});
         expect(!new View().el).toBeTruthy();
     });
+
+    it('multiple views per element', () => {
+        expect.assertions(3);
+        let count = 0;
+        let $el = $('<p></p>');
+
+        let View = Backbone.View.extend({
+            el: $el,
+            events: {
+                click: function () {
+                    count++;
+                }
+            }
+        });
+
+        let view1 = new View();
+        $el.trigger('click');
+        expect(1).toBe(count);
+
+        let view2 = new View();
+        $el.trigger('click');
+        expect(3).toBe(count);
+
+        view1.delegateEvents();
+        // TODO 查看jQuery事件命名空间的用法
+        $el.trigger('click');
+        expect(5).toBe(count);
+    });
+
+    it('views stopListening', () => {
+        // TODO 这是一个集成测试
+        // expect.assertions(0);
+        // let View = Backbone.View.extend({
+        //     initialize() {
+        //         this.listenTo(this.model, 'all x', function () {
+        //             expect(false).toBeTruthy();
+        //         });
+        //         this.listenTo(this.collection, 'all x', function () {
+        //             expect(false).toBeTruthy();
+        //         });
+        //     }
+        // });
+        //
+        // let myView = new View({
+        //     model: new Backbone.Model,
+        //     collection: new Backbone.Collection,
+        // });
+        //
+        // myView.stopListening();
+        // myView.model.trigger('x');
+        // myView.collection.trigger('x');
+    });
+
+    it('remove', () => {
+        expect.assertions(2);
+        let myView = new Backbone.View();
+        document.body.appendChild(view.el);
+
+        myView.delegate('click', function () {
+            expect(false).toBeTruthy();
+        });
+        myView.listenTo(myView, 'all x',function () {
+            expect(false).toBeTruthy();
+        });
+
+        expect(myView.remove()).toBe(myView);
+        myView.$el.trigger('click');
+        myView.trigger('x');
+
+        expect(myView.el.parentNode).not.toBe(document.body);
+    });
 });
