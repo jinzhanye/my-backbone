@@ -118,7 +118,7 @@
         return this;
     };
 
-    /**
+    /** 控制反转
      *  调用方式a.listenTo(b, {event: cb}); 或者 a.listenTo(b, 'event',cb);
      * @param obj 被监听对象
      * @param name 事件名称
@@ -309,6 +309,7 @@
                 } else {
                     var listening = handler.listening;
                     if (listening) {
+                        // 移除引用
                         listening.off(name, callback);
                     }
                 }
@@ -513,6 +514,98 @@
 
     // Backbone.Model
     // ---------------
+
+    // Backbone.View
+    // ---------------
+    var View = Backbone.View = function (options) {
+        // preinitialize与initialize都是留给开发者实现的方法，主要逻辑在_ensureElement
+        this.cid = _.uniqueId('view');
+        this.preinitialize.apply(this, arguments);
+        _.extend(this, _.pick(options, viewOptions));
+        this._ensureElement();
+        this.initialize.apply(this, arguments);
+    };
+
+    var viewOptions = ['model', 'collection', 'el', 'id', 'attributes', 'className', 'tagName', 'events'];
+
+
+    _.extend(View.prototype, Events, {
+        // The default `tagName` of a View's element is `"div"`.
+        tagName: 'div',
+        $: function (selector) {
+            return this.$el.find(selector);
+        },
+        // preinitialize is an empty function by default. You can override it with a function
+        // or object.  preinitialize will run before any instantiation logic is run in the View
+        preinitialize: function () {
+        },
+        // Initialize is an empty function by default. Override it with your own
+        // initialization logic.
+        initialize: function () {
+        },
+
+        /**
+         *
+         * @param element {Object} 原生DOM节点
+         */
+        setElement: function (element) {
+            this.undelegateEvents();
+            this._setElement(element);
+            this.delegateEvents();
+            return this;
+        },
+
+        _setElement: function (el) {
+            this.$el = el instanceof Backbone.$ ? el : Backbone.$(el);
+            this.el = this.$el[0];
+        },
+
+        undelegateEvents: function () {
+            if (this.$el) {
+                this.$el.off('.delegateEvents' + this.cid);
+            }
+            return this;
+        },
+
+        delegateEvents: function (events) {
+            events || (events = _.result(this, 'events'));
+            if (!events) {
+                return this;
+            }
+            // TODO
+        },
+
+        _createElement: function (tagName) {
+            return document.createElement(tagName);
+        },
+
+        // Ensure that the View has a DOM element to render into.
+        // If `this.el` is a string, pass it through `$()`, take the first
+        // matching element, and re-assign it to `el`. Otherwise, create
+        // an element from the `id`, `className` and `tagName` properties.
+        _ensureElement: function () {
+            if (!this.el) {
+                var attrs = _.extend({}, _.result(this, 'attributes'));
+                if (this.id) {
+                    attrs.id = _.result(this, 'id');
+                }
+                if (this.className) {
+                    // 为什么不用写成 attrs.class ??，与ES6有关？？
+                    attrs['class'] = _.result(this, 'className');
+                }
+                this.setElement(this._createElement(_.result(this, 'tagName')));
+                this._setAttributes(attrs);
+            } else {
+                // TODO
+            }
+        },
+
+        // Set attributes from a hash on this view's element.  Exposed for
+        // subclasses using an alternative DOM manipulation API.
+        _setAttributes: function (attributes) {
+            this.$el.attr(attributes);
+        }
+    });
 
     return Backbone;
 });
