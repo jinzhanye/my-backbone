@@ -526,6 +526,11 @@
         this.initialize.apply(this, arguments);
     };
 
+    // Cached regex to split keys for `delegate`.
+    // 比如 'click h1'
+    var delegateEventSplitter = /^(\S+)\s*(.*)$/;
+
+    // List of view options to be set as properties.
     var viewOptions = ['model', 'collection', 'el', 'id', 'attributes', 'className', 'tagName', 'events'];
 
 
@@ -535,15 +540,14 @@
         $: function (selector) {
             return this.$el.find(selector);
         },
-        // preinitialize is an empty function by default. You can override it with a function
-        // or object.  preinitialize will run before any instantiation logic is run in the View
+        // preinitialize、initialize、render均是留给开发者实现的方法
         preinitialize: function () {
         },
-        // Initialize is an empty function by default. Override it with your own
-        // initialization logic.
         initialize: function () {
         },
-
+        render: function () {
+            return this;
+        },
         /**
          *
          * @param element {Object} 原生DOM节点
@@ -560,6 +564,35 @@
             this.el = this.$el[0];
         },
 
+        delegateEvents: function (events) {
+            events || (events = _.result(this, 'events'));
+            if (!events) {
+                return this;
+            }
+            this.undelegateEvents();
+            for (var key in events) {
+                var method = events[key];
+                if (!_.isFunction(method)) {
+                    // 用属性名匹配 比如 {'click h1': 'increment'};
+                    // myView.increment = function () {/*do something*/};
+                    // 如测试用例 ‘delegateEvents‘
+                    method = this[method];
+                }
+                if (!method) {
+                    continue;
+                }
+                let match = key.match(delegateEventSplitter);
+                this.delegate(match[1], match[2], method.bind(this));
+            }
+            return this;
+        },
+
+        delegate: function (eventName, selector, listener) {
+            // 这里使用了jQuery的事件命名空间 click.delegateEvents.cid
+            this.$el.on(eventName + '.delegateEvents' + this.cid, selector, listener);
+            return this;
+        },
+
         undelegateEvents: function () {
             if (this.$el) {
                 this.$el.off('.delegateEvents' + this.cid);
@@ -567,12 +600,11 @@
             return this;
         },
 
-        delegateEvents: function (events) {
-            events || (events = _.result(this, 'events'));
-            if (!events) {
-                return this;
-            }
-            // TODO
+        // A finer-grained `undelegateEvents` for removing a single delegated event.
+        // `selector` and `listener` are both optional.
+        undelegate: function () {
+            this.$el.off(eventName + '.delegateEvents' + this.cid, selector, listener);
+            return this;
         },
 
         _createElement: function (tagName) {
@@ -596,7 +628,8 @@
                 this.setElement(this._createElement(_.result(this, 'tagName')));
                 this._setAttributes(attrs);
             } else {
-                // TODO
+                // el 可以是 选择器如'#testElement' 、 jQuery对象 、 原生DOM对象
+                this.setElement(_.result(this, 'el'));
             }
         },
 
@@ -606,6 +639,40 @@
             this.$el.attr(attributes);
         }
     });
+
+    // Helpers
+    // -------
+
+    // 使用寄生组合式继承
+    var extend = function (protoProps, staticProps) {
+        // this 可能是Model/Collection/Router/View/....
+        var parent = this;
+        var child;
+
+        // protoProps可以是一个构造函数
+        if (protoProps && _.has(protoProps, 'constructor')) {
+            child = protoProps.constructor;
+        } else {//protoProps也可以是一个实例，没有构造函数，则利用一个内置的parent函数作为构造函数。
+            //比如 Backbone.Model.extend({defaults() {return {title: 'empty'}}})
+            child = function () {
+                return parent.apply(this, arguments);
+            }
+        }
+
+        // underscore中的方法，与常见的mixin函数类似
+        _.extend(child, parent, staticProps);
+
+        // _.create 创建具有给定原型的新对象， 可选附加props 作为 own的属性。 基本上，和Object.create一样
+        child.prototype = _.create(parent.prototype, protoProps);
+        child.prototype.constructor = child;
+
+        //提供一个访问父类原型的方式，方便调用
+        child.__super__ = parent.prototype;
+        return child;
+    };
+
+    View.extend = extend;
+    // Model.extend = Collection.extend = Router.extend = View.extend = History.extend = extend;
 
     return Backbone;
 });
