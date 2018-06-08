@@ -13,4 +13,9 @@ npm run test -- --coverage
 jest调试命令 node --inspect --inspect-brk node_modules/bin/jest 要在node 8.4以上运行才有效。webstorm调试内部也是调用了这个命令，所以系统安装的node版本一定要注意
 
 ## Jest 常用API
+- expect.assertions(Number);
 - expect(objA).toEqual(objB) 递归比较两个对象/数组是否内容相同
+- expect(*).toBe(*) Object is
+- expect().not.toBe()
+- expect(Boolean).toBeTruthy()
+- expect(() => {view.trigger('test');}).toThrow();

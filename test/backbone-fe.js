@@ -514,6 +514,631 @@
 
     // Backbone.Model
     // ---------------
+    var Model = Backbone.Model = function (attributes, options) {
+        // 备份开发者传入的model
+        var attrs = attributes || {};
+        options || (options = {});
+        // 这个preinitialize函数实际上是为空的,可以给有兴趣的开发者重写这个函数，在初始化Model之前调用，
+        // 主要是为ES6的class写法提供方便??
+        this.preinitialize.apply(this, arguments);
+        // 使用underscore生成唯一id
+        this.cid = _.uniqueId(this.cidPrefix);
+        // 初始化model为空对象
+        this.attributes = {};
+
+        // collection在获取model对应的后端url时使用，在model上设置collection并不会自动将model加入collection
+        if (options.collection) {
+            this.collection = options.collection;
+        }
+
+        // 如果之后new的时候传入的是JSON,我们必须在options选项中声明parse为true
+        if (options.parse) {
+            attrs = this.parse(attrs, options) || {};
+        }
+
+        // 相当于this['defaults']
+        var defaults = _.result(this, 'defaults');
+
+        // ****将model默认对象与new时传入的对象混合到一个对象
+        // _.defaults(object, *defaults)
+        // 如果某个属性在object为undefined(即不存在)，那么该属性会被defaults填充
+        // 因为调用_.extend({}, defaults, attrs)时attrs里可能存在某个值为undefined的属性会覆盖defaults里的值，外层再调用 _.defaults 确保默认值不会被undefined覆盖
+        attrs = _.defaults(_.extend({}, defaults, attrs), defaults);
+        this.set(attrs, options);
+        // 调用set函数后，会多出一些changed属性值，但是changed属性用来保存修改过的属性数据,第一次set，不需要changed数据，所以这些需要清空
+        this.changed = {};
+        this.initialize.apply(this, arguments);
+    };
+
+    _.extend(Model.prototype, Events, {
+        // 存储相对于上一次model变化的属性
+        changed: null,
+        // true:验证不通过 , false:验证失败
+        validationError: null,
+        // The default name for the JSON `id` attribute is `"id"`. MongoDB and
+        // CouchDB users may want to set this to `"_id"`.
+        idAttribute: 'id',
+
+        cidPrefix: 'c',
+        // 空函数，提供给开发者重写，会在初始化一个实例之前调用
+        preinitialize: function () {
+        },
+        initialize: function () {
+        },
+        // 对model设值，并触发change事件
+        /**
+         *
+         * @param key {Object} | String
+         * @param val String
+         * @param options
+         * @returns {Model}
+         */
+        set: function (key, val, options) {
+            if (key == null) {
+                return this;
+            }
+            var attrs;
+            // 参数修正
+            // Handle both `"key", value` and `{key: value}` -style arguments.
+            if (typeof key === 'object') {//{key: value}
+                attrs = key;
+                options = val;
+            } else {//`"key", value`
+                (attrs = {})[key] = val;
+            }
+
+            options || (options = {});
+
+            //Run validation
+            if (!this._validate(attrs, options)) {
+                return false;
+            }
+
+            // Extract attributes and options
+            // model.unset(attribute, [options])
+            // 从内部属性散列表中删除指定属性(attribute)。 如果未设置 silent 选项，会触发 "change" 事件。
+            var unset = options.unset;
+            // 在不传入 {silent: true} 选项参数的情况下，会触发 "change" 事件
+            var silent = options.silent;
+            // //用来存放所有有变动的key
+            var changes = [];
+            // this._changing记录的是上一次递归setElement时是否在变化中
+            // 如果this._changing为undefined或者false，表明是第一次递归setElement
+            var changing = this._changing;
+            // 属性正在变动
+            this._changing = true;
+
+            if (!changing) {
+                // _.clone 是一个浅克隆方法
+                this._previousAttributes = _.clone(this.attributes);
+                // 每次set时，changed都会被重置的{}，仅保留最近一次的变化
+                this.changed = {};
+            }
+
+            // 旧的属性值，执行完for (var attr in attrs)...后会拥有新的属性值
+            var current = this.attributes;
+            var changed = this.changed;
+            // 旧的属性
+            var prev = this._previousAttributes;
+
+            // 填充changes与current即this.attributes
+            for (var attr in attrs) {
+                val = attrs[attr];
+                if (!_.isEqual(current[attr], val)) {
+                    changes.push(attr);
+                }
+                //changed只存储变化的变量，如果这次和上次相等，说明变量没有变化，就直接删除在changed中的键值对
+                if (!_.isEqual(prev[attr], val)) {
+                    changed[attr] = val;
+                } else {
+                    delete changed[attr];
+                }
+                // 判断了到底是删除还是更新
+                unset ? delete current[attr] : current[attr] = val;
+            }
+
+            // 如果在set的时候传入新的id，那么这个时候可以更改id
+            if (this.idAttribute in attrs) {
+                this.id = this.get(this.idAttribute);
+            }
+
+            if (!silent) {
+                if (changes.length) {
+                    this._pending = options;
+                }
+                for (var i = 0; i < changes.length; i++) {
+                    // 对每一个属性的更改都触发相应的事件,事件名采用 change:AttrName 格式
+                    // changes保存的是key,current保存的是对象,current[changes[i]]即获取某个属性的值
+                    // TODO
+                    this.trigger('change:' + changes[i], this, current[changes[i]], options);
+                }
+            }
+
+            if (changing) {
+                return this;
+            }
+            // 为什么又多一次 !silent判断，见测试用例 'nested set triggers with the correct options'
+            // You might be wondering why there's a `while` loop here. Changes can
+            // be recursively nested within `"change"` events.
+            if (!silent) {
+                while (this._pending) {
+                    options = this._pending;
+                    this._pending = false;
+                    this.trigger('change', this, options);
+                }
+            }
+            this._pending = false;
+            this._changing = false;
+            return this;
+        },
+
+        // Remove an attribute from the model, firing `"change"`. `unset` is a noop
+        // if the attribute doesn't exist.
+        unset: function (attr, options) {
+            return this.set(attr, void 0, _.extend({}, options, {unset: true}));
+        },
+
+        fetch: function (options) {
+            options = _.extend({parse: true}, options);
+            var model = this;
+            // 保存开发者传入的success callback
+            var success = options.success;
+            options.success = function (resp) {
+                debugger
+                var serverAttrs = options.parse ? model.parse(resp, options) : resp;
+                // set方法里会校验属性，如果不通过返回false
+                if (!model.set(serverAttrs, options)) {
+                    return false;
+                }
+                // 回调开发者传入的success callback
+                if (success) {
+                    success.call(options.context, model, resp, options);
+                }
+                model.trigger('sync', model, resp, options);
+            };
+            wrapError(this, options);
+            return this.sync('read', this, options);
+        },
+        /**
+         * Model的save方法，实际上是set并且同步到服务器
+         * 其中，传递的options中可以使用的字段以及意义为：
+         *
+         • wait: 可以指定是否等待服务端的返回结果再更新model。默认情况下不等待
+         • url: 可以覆盖掉backbone默认使用的url格式
+         • attrs: 可以指定保存到服务端的字段有哪些，配合options.patch可以产生PATCH对模型进行部分更新
+         • patch:boolean 指定使用部分更新的REST接口
+         • success: 自己定义一个回调函数
+         • data: 会被直接传递给jquery的ajax中的data，能够覆盖backbone所有的对上传的数据控制的行为
+         • 其他: options中的任何参数都将直接传递给jquery的ajax，作为其options
+         * @param key {{Object | String}}
+         * @param val
+         * @param options
+         */
+        save: function (key, val, options) {
+            var attrs;
+            // 支持key是对象或者key:val的形式
+            if (key == null || typeof key === 'object') {
+                attrs = key;
+                options = val;
+            } else {
+                (attrs = {})[key] = val;
+            }
+
+            options = _.extend({validate: true, parse: true}, options);
+            var wait = options.wait;
+
+            if (attrs && !wait) {// 不等待服务器返回，直接更新model
+                if (!this.set(attrs, options)) {// 如果没通过set的参数校验则返回false
+                    return false;
+                }
+            } else if (!this._validate(attrs, options)) {
+                return false;
+            }
+
+            var model = this;
+            var success = options.success;
+            // 下面会对this.attributes进行修改，先用临时变量进行保存
+            var attributes = this.attributes;
+
+            options.success = function (resp) {
+                // 还原attributes
+                model.attributes = attributes;
+                var serverAttrs = options.parse ? model.parse(resp, options) : resp;
+                if (wait) {
+                    serverAttrs = _.extend({}, attrs, serverAttrs);
+                }
+                // TODO 如果非wait，在服务器响应前已经set过一次了，为什么现在还要再set一次??
+                if (serverAttrs && !model.set(serverAttrs, options)) {
+                    return false;
+                }
+                if (success) {
+                    success.call(options.context, model, resp, options);
+                }
+                model.trigger('sync', model, resp, options);
+            };
+            wrapError(this, options);
+
+            if (attrs && wait) {
+                this.attributes = _.extend({}, attributes, attrs);
+            }
+
+            var method = this.isNew() ? 'create' : (options.patch ? 'patch' : 'update');
+            if (method === 'patch' && !options.attrs) {
+                options.attr = attrs;
+            }
+            var xhr = this.sync(method, this, options);
+            //恢复刚才由于要判断isNew而临时改变的attributes
+            this.attributes = attributes;
+
+            return xhr;
+        },
+        // options不用？
+        toJSON: function (options) {
+            return _.clone(this.attributes);
+        },
+        sync: function () {
+            return Backbone.sync.apply(this, arguments);
+        },
+        get: function (attr) {
+            return this.attributes[attr];
+        },
+        escape: function (attr) {
+            return _.escape(this.get(attr));
+        },
+        has: function (attr) {
+            return this.get(attr) != null;
+        },
+        // matches: function (attrs) {
+        //     return !!_.iteratee(attrs, this)(this.attributes);
+        // },
+        //backbone Model的url构造函数，我们可以指定一个urlRoot作为根路径，另外也可以继承来自collection的url
+        //当然我们还可以覆盖这个url函数的写法(不推荐)
+        url: function () {
+            let base =
+                _.result(this, 'urlRoot') ||
+                _.result(this.collection, 'url') ||
+                urlError();
+            if (this.isNew()) {
+                return base;
+            }
+            let id = this.get(this.idAttribute);
+            //这个正则表达式是一个很巧妙的处理,它的作用是匹配url是不是以`/`结尾，是的话就不管，不是的话就加上`/`,其中$&表示最后一个匹配的字符
+            return base.replace(/[^\/]$/, '$&/') + encodeURIComponent(id);
+        },
+
+        // 开放给供开发者修改的接口，默认情况下直接返回response
+        parse: function (resp, options) {
+            return resp;
+        },
+
+        clone: function () {
+            // constructor是js prototype上内置的引用，[constructor].prototype.constructor 指向这个构造函数
+            return new this.constructor(this.attributes);
+        },
+
+        // A model is new if it has never been saved to the server, and lacks an id.
+        isNew: function () {
+            return !this.has(this.idAttribute);
+        },
+        // TODO
+        _validate: function (attrs, options) {
+            // 达到 options:{validate:true}  model:{validate:function(){}} 两个条件才会进行验证
+            if (!options.validate || !this.validate) {
+                return true;
+            }
+            // 有可能在调用set方法时进行验证，attributes是原有的属性，attrs是调用set方法时传入的属性
+            // rror所有的属性都需要验证
+            attrs = _.extend({}, this.attributes, attrs);
+            // validate 无返回表示验证通过
+            var error = this.validationError = this.validate(attrs, options) || null;
+            if (!error) {
+                return true;
+            }
+            this.trigger('invalidate', this, error, _.extend(options, {validationError: error}));
+            return false;
+        }
+    });
+
+    // Backbone.Collection
+    // ---------------
+    var Collection = Backbone.Collection = function (models, options) {
+        options || (options = {});
+        this.preinitialize.apply(this, arguments);
+        // 实际开发中大多数在创建集合类的时候大多数都会定义一个model,
+        // 但是也可以在初始化的时候从options中指定model
+        if (options.model) {
+            this.model = options.model;
+        }
+        // 可以在options中指定一个comparator作为排序器
+        if (options.comparator !== void 0) {
+            this.comparator = options.comparator;
+        }
+        // 初始化
+        this._reset();
+        this.initialize.apply(this, arguments);
+        if (models) {
+            // 初始化时不需要触发change，所以设置silent:true
+            this.reset(models, _.extend({silent: true}, options));
+        }
+
+
+    };
+
+
+    var setOptions = {add: true, remove: true, merge: true};
+    var addOptions = {add: true, remove: false};
+
+
+    /**
+     *
+     *  在array数组的第at个位置插入insert数组
+     *  与ES5的splice方法的功能相似，但这里没有删除功能
+     *
+     * @param array {Array}
+     * @param insert {Array}
+     * @param at {Number}
+     */
+    var splice = function (array, insert, at) {
+        at = Math.min(Math.max(at, 0), array.length);
+        var tail = Array(array.length - at);
+        var length = insert.length;
+        var i;
+        for (i = 0; i < tail.length; i++) tail[i] = array[i + at];
+        for (i = 0; i < length; i++) array[i + at] = insert[i];
+        for (i = 0; i < tail.length; i++) array[i + length + at] = tail[i];
+    };
+
+    _.extend(Collection.prototype, Events, {
+        // 应该被开发者覆盖
+        model: Model,
+        preinitialize: function () {
+        },
+        initialize: function () {
+        },
+        // 增加一个/组模型，这个模型可以是backbone模型，也可以是用来生成backbone模型的js键值对象？
+        add: function (models, options) {
+            return this.set(models, _.extend({merge: false}, options, addOptions));
+        },
+        /**
+         * 返回索引为index的元素，index可为负数，表示倒数第index个元素
+         * @param index {number}
+         * @returns {*}
+         */
+        at: function (index) {
+            if (index < 0) {
+                index += this.length;
+            }
+            return this.models[index];
+        },
+        set: function (models, options) {
+            // options 长这样
+            // options = {
+            //     add: true,
+            //     merge: false,
+            //     remove: false,
+            //     previousModels: [],
+            //     silent: true
+            // }
+            if (models == null) {
+                return;
+            }
+
+            // 无论是添加单个model还是一组model，都统一用一组model处理
+            var singular = !_.isArray(models);
+            // models.slice() 相当于浅克隆一个数组
+            models = singular ? [models] : models.slice();
+
+
+            // TODO at这段还没抄
+            // 处理at，确保at为合理的数字
+            var at = options.at;
+
+            // set表示经过本次处理后应当存在于this.models中的model
+            var set = [];
+            //存储本次操作增加的model数组
+            var toAdd = [];
+            // 本次操后修改的model数组
+            var toMerge = [];
+            // 本次操作删除的models
+            var toRemove = [];
+            // modelMap是本次变化后的应该存在于Collection中的models的key集合
+            var modelMap = {};
+
+            var add = options.add;
+            var merge = options.merge;
+            var remove = options.remove;
+
+            var sort = false;
+            // 标志是否可以排序
+            // this.comparator是开发者传进来的排序方法
+            var sortable = this.comparator && at == null && options.sort !== false;
+
+            var sortAttr = _.isString(this.comparator) ? this.comparator : null;
+
+            var model, i;
+            for (i = 0; i < models.length; i++) {
+                model = models[i];
+                var existing = this.get(model);
+                if (existing) {
+
+                } else if (add) {
+                    // _prepareModel将原始对象转化为Model实例，并建立model到collection的引用
+                    model = models[i] = this._prepareModel(model, options);
+                    if (model) {
+                        toAdd.push(model);
+                        // 将model和collections建立联系
+                        this._addReference(model, options);
+                        modelMap[model.cid] = true;
+                        set.push(model);
+                    }
+                }
+            }// for end
+
+            // TODO
+            if (remove) {
+
+            }
+
+            var orderChanged = false;
+
+            // 如果是增加模式，remove是false
+            var replace = !sortable && add && remove;
+
+            if (set.length && replace) {// TODO
+
+            } else if (toAdd.length) {
+                if (sortable) {
+                    sort = true;
+                }
+                splice(this.models, toAdd, at == null ? this.length : at);
+                this.length = this.models.length;
+            }
+
+            if (sort) {// TODO
+                this.sort({silent: true});
+            }
+
+            // 非silent情况下，触发add/sort/update事件
+            if (!options.silent) {
+
+            }
+
+            // Return the added (or merged) model (or models).
+            return singular ? models[0] : models;
+        },
+        /**
+         *  通过id或cid获取Collection里对应的model
+         * @param obj { String | Object }
+         * @returns {*}
+         */
+        get: function (obj) {
+            if (obj == null) {
+                return void 0;
+            }
+            return this._byId[obj] ||//如果obj为cid或者id
+                this._byId[this.modelId(this._isModel(obj) ? obj.attributes : obj)] ||//如果obj是一个对象
+                obj.cid && this._byId[obj.cid];
+        },
+        toJSON: function (options) {
+            return this.map(function (model) {
+                return model.toJSON(options);
+            });
+        },
+        sync: function () {
+            return Backbone.sync.apply(this, arguments);
+        },
+        reset: function (models, options) {
+            options = options ? _.clone(options) : {};
+            for (var i = 0; i < this.models.length; i++) {
+                this._removeReference(this.models[i], options);
+            }
+            options.previousModels = this.models;
+            this._reset();
+            // Collection初始化不需要触发change事件，所以silent: true
+            models = this.add(models, _.extend({silent: true}));
+            if (!options.silent) {
+                this.trigger('reset', this, options);
+            }
+            return models;
+        },
+        create: function (model, options) {
+            options = options ? _.clone(options) : {};
+            var wait = options.wait;
+            model = this._prepareModel(model, options);
+            if (!model) {
+                return false;
+            }
+            if (!wait) {
+                this.add(model, options);
+            }
+            var collection = this;
+            var success = options.success;
+            options.success = function (m, resp, callbackOpts) {
+                if (wait) {
+                    collection.add(m, callbackOpts);
+                }
+                if (success) {
+                    success.call(callbackOpts.context, m, resp, callbackOpts);
+                }
+            };
+            model.save(null, options);
+            return model;
+        },
+        _reset: function () {
+            this.length = 0;
+            this.models = [];
+            this._byId = {};
+            // _byId:{
+            //     'cid1':{},//后面跟对应的model
+            //     'cid2':{},
+            // }
+        },
+        /* Prepare a hash of attributes(or other model) to be added to this
+        *  使用场景
+        *  比如以下userCollection，构造函数列表参数中既可以是一个model如modelUserA，也可以是一个普通的对象如James。
+        *  此函数就是用作将普通的对象转化成model
+        *
+          let userCollection = new UserCollection([modelUserA,
+                {// 还可以以普通的形式传参
+                    name: 'James',
+                    tall: 209
+                }]
+            );
+        * */
+        _prepareModel: function (attrs, options) {
+            // Collection里每个model都有一个collection属性指向该Collection，方便开发者调用
+            // 如果attrs是model，则关联Collection后返回attrs，如modelUserA
+            if (this._isModel(attrs)) {
+                if (!attrs.collection) {//
+                    attrs.collection = this;
+                }
+                return attrs;
+            }
+            options = options ? _.clone(options) : {};
+            options.collection = this;
+            var model = new this.model(attrs, options);
+            if (!model.validationError) {
+                return model;
+            }
+            this.trigger('invalid', this, model.validationError, options);
+            return false;
+        },
+        modelId: function (attrs) {
+            return attrs[this.model.prototype.idAttribute || 'id'];
+        },
+        _isModel: function (model) {
+            return model instanceof Model;
+        },
+        _addReference: function (model, options) {
+            this._byId[model.cid] = model;
+            var id = this.modelId(model.attributes);
+            if (id != null) {
+                this._byId[id] = model;
+            }
+            model.on('all', this._onModelEvent, this);
+        },
+        // 移除model与collection的联系
+        _removeReference: function (model, options) {
+            delete this._byId[model.cid];
+            var id = this.modelId(model.attributes);
+            if (id != null) {
+                delete this._byId[id];
+            }
+        },
+
+        _onModelEvent: function (event, model, collection, options) {
+            if (model) {
+                if ((event === 'add' || event === 'remove') && collection !== this) {
+                    return;
+                }
+                if (event === 'destroy') {
+                    this.remove(model, options);
+                }
+            }
+            this.trigger.apply(this, arguments);
+        }
+    });
+
 
     // Backbone.View
     // ---------------
@@ -652,6 +1277,130 @@
         }
     });
 
+    // Backbone.sync
+    // -------------
+    Backbone.sync = function (method, model, options) {
+        // this.sync('read', this, options)
+        var type = methodMap[method];
+        _.defaults(options || (options = {}), {
+            emulateHTTP: Backbone.emulateHTTP,
+            emulateJSON: Backbone.emulateJSON
+        });
+        // 默认为json格式请求
+        var params = {type: type, dataType: 'json'};
+        // 如果url不存在，则抛出异常
+        if (!options.url) {
+            params.url = _.result(model, 'url') || urlError();
+        }
+        // 确保传输格式为Json
+        if (options.data == null && model && (method === 'create' || method === 'update' || method === 'patch')) {
+            params.contentType = 'application/json';
+            params.data = JSON.stringify(options.attr || model.toJSON(options));
+        }
+        // 使用表单格式传输
+        if (options.emulateJSON) {
+            params.contentType = 'application/x-www-form-urlencoded';
+            params.data = params.data ? {model: params.data} : {};
+        }
+        // TODO
+        if (options.emulateHTTP && (type === 'PUT' || type === 'DELETE' || type === 'PATCH')) {
+        }
+
+        // TODO ？？
+        // Don't process data on a non-GET request.
+        if (params.type !== 'GET' && !options.emulateJSON) {
+            params.processData = false;
+        }
+
+        var error = options.error;
+        // 从jQuery error回调函数中获取`textStatus`和`errorThrown` .
+        // xhr (在 jQuery 1.4.x前为XMLHttpRequest) 对象、描述发生错误类型的一个字符串 和 捕获的异常对象。
+        // 如果发生了错误，错误信息（第二个参数）除了得到null之外，还可能是"timeout", "error", "abort" ，和 "parsererror"。
+        // 当一个HTTP错误发生时，errorThrown 接收HTTP状态的文本部分，比如： "Not Found"（没有找到） 或者 "Internal Server Error."（服务器内部错误）。
+        options.error = function (xhr, textStatus, errorThrown) {
+            options.textStatus = textStatus;
+            options.errorThrown = errorThrown;
+            if (error) {
+                error.call(options.context, xhr, textStatus, errorThrown);
+            }
+        };
+
+        // params是内置配置，options是开发者传入的配置，这样做使开发的配置可以覆盖内置配置
+        var xhr = options.xhr = Backbone.ajax(_.extend(params, options));
+        model.trigger('request', model, xhr, options);
+        return xhr;
+    };
+
+    var methodMap = {
+        'create': 'POST',
+        'update': 'PUT',
+        'patch': 'PATCH',
+        'delete': 'DELETE',
+        'read': 'GET'
+    };
+
+    Backbone.ajax = function () {
+        return Backbone.$.ajax.apply(Backbone.$, arguments);
+    };
+
+
+    /*
+     这个函数和下面的函数的作用是将underscore中的方法加入到具体的对象(实际上是类)中,后文中只有两次调用addUnderscoreMethods方法：
+     一次是给model添加方法，一次是给collection添加方法
+    */
+    var addMethods = function (base, length, method, attributes) {
+
+    };
+
+    var addUnderscoreMethods = function (Class, base, methods, attributes) {
+        _.each(methods, function (length, method) {// function(element, index, list)
+            if (base[method]) {
+
+            }
+        });
+    };
+
+    // Underscore methods that we want to implement on the Collection.
+    // 90% of the core usefulness of Backbone Collections is actually implemented
+    // right here:
+    var collectionMethods = {
+        forEach: 3, each: 3, map: 3, collect: 3, reduce: 0,
+        foldl: 0, inject: 0, reduceRight: 0, foldr: 0, find: 3, detect: 3, filter: 3,
+        select: 3, reject: 3, every: 3, all: 3, some: 3, any: 3, include: 3, includes: 3,
+        contains: 3, invoke: 0, max: 3, min: 3, toArray: 1, size: 1, first: 3,
+        head: 3, take: 3, initial: 3, rest: 3, tail: 3, drop: 3, last: 3,
+        without: 0, difference: 0, indexOf: 3, shuffle: 1, lastIndexOf: 3,
+        isEmpty: 1, chain: 1, sample: 3, partition: 3, groupBy: 3, countBy: 3,
+        sortBy: 3, indexBy: 3, findIndex: 3, findLastIndex: 3
+    };
+
+
+    // Underscore methods that we want to implement on the Model, mapped to the
+    // number of arguments they take.
+    var modelMethods = {
+        keys: 1, values: 1, pairs: 1, invert: 1, pick: 0,
+        omit: 0, chain: 1, isEmpty: 1
+    };
+
+    // Mix in each Underscore method as a proxy to `Collection#models`.
+    _.each([
+        [Collection, collectionMethods, 'methods'],
+        [Model, modelMethods, 'attributes'],
+    ], function (config) {
+        var Base = config[0],
+            methods = config[1],
+            attribute = config[2];
+
+        Base.mixin = function (obj) {
+            var mappings = _.reduce(_.functions(), function (memo, name) {// memo n.备忘录
+
+            }, {});
+            addUnderscoreMethods(Base, obj, mappings, attribute);
+        };
+
+        addUnderscoreMethods(Base, _, methods, attribute);
+    });
+
     // Helpers
     // -------
 
@@ -683,8 +1432,29 @@
         return child;
     };
 
-    View.extend = extend;
+    Model.extend = Collection.extend = View.extend = extend;
     // Model.extend = Collection.extend = Router.extend = View.extend = History.extend = extend;
 
+    var urlError = function () {
+        throw new Error('A "url" property or function must be specified');
+    };
+
+    /**
+     *  包装错误的函数,非常典型的设计模式中的装饰者模式,这里增加了一个触发
+     * @param model
+     * @param options
+     */
+    var wrapError = function (model, options) {
+        // 保存开发者传入的error callback
+        var error = options.error;
+        options.error = function (resp) {
+            // 开发者可以通过绑定error callback处理错误
+            // 也可以监听error事件处理错误
+            if (error) {
+                error.call(options.context, model, resp, options);
+            }
+            model.trigger('error', model, resp, options);
+        };
+    };
     return Backbone;
 });

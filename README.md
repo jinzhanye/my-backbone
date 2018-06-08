@@ -24,6 +24,17 @@ Controller表示控制层，用来对原始数据（Model）进行加工，传�
 - 装饰者模式
     - wrapError
     借用jQuery Error 处理函数 1603 -> 包装错误处理函数 2018 -> 开发者的错误处理函数
+- 模版方法
+    preinitialize与initialize都是要开发者自己实现的方法，形成一个生命周期
+    ````js
+    var View = Backbone.View = function (options) {
+            this.cid = _.uniqueId('view');
+            this.preinitialize.apply(this, arguments);
+            _.extend(this, _.pick(options, viewOptions));
+            this._ensureElement();
+            this.initialize.apply(this, arguments);
+        };
+    ````    
 - eventApis iteree通用接口
 
 ## Events
@@ -36,15 +47,16 @@ Model
 
 ````js
 
-// CouchDB users may want to set this to `"_id"`.
 this.model.prototype.idAttribute = 'id';
 var prototype = {
+    // 指定'id'属性用于存放model的id
     idAttribute: 'id',
     cidPrefix: 'c',
 }
        
 backbone.Model = {
-    id:'1', // 这个id一般不会自己设置，在不设置id的情况下backbone内部会使用cid当作区分唯一model的id
+    // id:'1', // 这个'id'一般情况下是不存在的，如果开发者设置了这个id则以这个id为model的识别id，
+    // 在不设置id的情况下backbone内部会使用cid当作区分唯一model的id
     cid:"c1", // UUID
     attributes:{name: "Hello Kitty", color: "Blue", description: "Hello World"}, // 开发者的model对象
     changed:{},  // 保存当前model相对于上一个版本model修改过的属性数据,第一次set，不需要changed数据。change 由设置属性/删除属性所触发
