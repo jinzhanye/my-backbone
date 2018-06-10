@@ -678,13 +678,21 @@
             return this.set(attr, void 0, _.extend({}, options, {unset: true}));
         },
 
+        // Clear all attributes on the model, firing `"change"`.
+        clear: function (options) {
+            var attrs = {};
+            for (var key in this.attributes) {
+                attrs[key] = void 0;
+            }
+            return this.set(attrs, _.extend({}, options, {unset: true}));
+        },
+
         fetch: function (options) {
             options = _.extend({parse: true}, options);
             var model = this;
             // 保存开发者传入的success callback
             var success = options.success;
             options.success = function (resp) {
-                debugger
                 var serverAttrs = options.parse ? model.parse(resp, options) : resp;
                 // set方法里会校验属性，如果不通过返回false
                 if (!model.set(serverAttrs, options)) {
@@ -752,6 +760,7 @@
                     return false;
                 }
                 if (success) {
+                    // args:model, resp, options
                     success.call(options.context, model, resp, options);
                 }
                 model.trigger('sync', model, resp, options);
@@ -766,10 +775,55 @@
             if (method === 'patch' && !options.attrs) {
                 options.attr = attrs;
             }
+
             var xhr = this.sync(method, this, options);
             //恢复刚才由于要判断isNew而临时改变的attributes
             this.attributes = attributes;
 
+            return xhr;
+        },
+        /**
+         * 销毁这个模型，我们可以分析，销毁模型要做以下几件事情：
+         • 停止对该对象所有的事件监听,本身都没有了,还监听什么事件
+         • 告知服务器自己要被销毁了(如果isNew()返回true,那么其实不用向服务器发送请求)
+         • 如果它属于某一个collection,那么要告知这个collection要把这个模型移除
+
+         其中，传递的options中可以使用的字段以及意义为：
+         • wait: 可以指定是否等待服务端的返回结果再销毁。默认情况下不等待
+         • success: 自己定义一个回调函数
+         * @param options
+         * @returns {boolean}
+         */
+        destroy: function (options) {
+            options = options ? _.clone(options) : {};
+            var model = this;
+            var success = options.success;
+            var wait = options.wait;
+            var destroy = function () {
+                model.stopListening();
+                model.trigger('destroy', model, model.collection, options);
+            };
+            options.success = function (resp) {
+                if (wait) {
+                    destroy();
+                }
+                if (success) {
+                    success.call(options.context, model, resp, options);
+                }
+                if (!model.isNew()) {
+                    model.trigger('sync', model, resp, options);
+                }
+            };
+            var xhr = false;
+            if (this.isNew()) {
+                _.defer(options.success);
+            } else {
+                wrapError(this, options);
+                xhr = this.sync('delete', this, options);
+            }
+            if (!wait) {
+                destroy();
+            }
             return xhr;
         },
         // options不用？
@@ -802,7 +856,8 @@
                 return base;
             }
             let id = this.get(this.idAttribute);
-            //这个正则表达式是一个很巧妙的处理,它的作用是匹配url是不是以`/`结尾，是的话就不管，不是的话就加上`/`,其中$&表示最后一个匹配的字符
+            // 这个正则表达式是一个很巧妙的处理,它的作用是匹配url是不是以`/`结尾，是的话就不管，不是的话就加上`/`,其中$&表示最后一个匹配的字符
+            // 如果model有设置id,就将id拼接到url尾部
             return base.replace(/[^\/]$/, '$&/') + encodeURIComponent(id);
         },
 

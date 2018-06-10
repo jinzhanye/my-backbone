@@ -1,7 +1,7 @@
 {
   "name": "my-backbone",
   "version": "1.0.0",
-  "description": "## Model Model表示数据层，也就是程序需要的数据源，通常使用JSON格式表示。",
+  "description": "backbone read note",
   "main": "backbone-comment.js",
   "directories": {
     "test": "test"

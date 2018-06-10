@@ -8,3 +8,4 @@
 - escape转义
 - iteratee 
 - isEmpty
+_ isEqual 执行两个对象之间的优化深度比较，确定他们是否应被视为相等。

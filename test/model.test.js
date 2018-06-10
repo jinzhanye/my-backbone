@@ -11,6 +11,21 @@ let Klass = Backbone.Collection.extend({
 let doc;
 let collection;
 
+let sync = Backbone.sync;
+let ajax = Backbone.ajax;
+const env = this;
+Backbone.ajax = function (settings) {
+    env.ajaxSettings = settings;
+};
+
+Backbone.sync = function (method, model, options) {
+    env.syncArgs = {
+        method: method,
+        model: model,
+        options: options
+    };
+    sync.apply(this, arguments);
+};
 describe('Backbone.Model', () => {
     beforeEach(() => {
         doc = new ProxyModel({
@@ -252,5 +267,111 @@ describe('Backbone.Model', () => {
         model.set('a', 1, o1);
     });
 
+    // Backbone.sync
+    // -------------
+    it('save within change event', () => {
+        expect.assertions(1);
+        let env = this;
+        let model = new Backbone.Model({firstName: 'Jane', lastName: 'Eyre'});
+        model.url = '/test';
+        model.on('change', function () {
+            model.save();
+            expect(_.isEqual(env.syncArgs.model, model)).toBeTruthy();
+        });
+        model.set({lastName: 'Docker'});
+    });
 
+    it('validate after save', () => {
+        expect.assertions(2);
+        let lastError;
+        let model = new Backbone.Model();
+        model.validate = function (attrs) {
+            if (attrs.admin) {
+                return 'Cant\'t change admin status';
+            }
+        };
+        model.sync = function (method, m, options) {
+            options.success.call(this, {admin: true});
+        };
+        model.on('invalidate', function (m, error) {
+            lastError = error;
+        });
+        model.save(null);
+
+        expect(lastError).toBe('Cant\'t change admin status');
+        expect(model.validationError).toBe('Cant\'t change admin status');
+    });
+
+    it('save', () => {
+        expect.assertions(2);
+        doc.save({title: 'Henry V'});
+        expect(this.syncArgs.method).toBe('update');
+        expect(_.isEqual(this.syncArgs.model, doc)).toBeTruthy();
+    });
+
+    it('save, fetch, destroy triggers error event when an errors occurs', () => {
+        expect.assertions(3);
+        let model = new Backbone.Model();
+        model.on('error', function () {
+            expect(true).toBeTruthy();
+        });
+        model.sync = function (method, model, options) {
+            options.error();
+        };
+        model.save({data: 2, id: 2});
+        model.fetch();
+        model.destroy();
+    });
+
+    it('save in positional style', () => {
+        expect.assertions(1);
+        let model = new Backbone.Model();
+        model.sync = function (method, model, options) {
+            options.success();
+        };
+        model.save('title', 'Twelfth Night');
+        expect(model.get('title')).toBe('Twelfth Night');
+    });
+
+    it('save with non-object success response', () => {
+        expect.assertions(2);
+        let model = new Backbone.Model();
+        model.sync = function (method, m, options) {
+            options.success('', options);
+            options.success(null, options);
+        };
+        model.save({testing: 'empty'}, {
+            success: function (model) {
+                expect(model.attributes).toEqual({testing: 'empty'});
+            }
+        });
+    });
+
+    it('save with wait and supplied id', () => {
+        let Model = Backbone.Model.extend({
+            urlRoot: '/collection'
+        });
+        let model = new Model();
+        model.save({id: 42}, {wait: true});
+        expect(this.ajaxSettings.url).toBe('/collection/42');
+    });
+
+    it('save will pass extra options to success callback', () => {
+        expect.assertions(1);
+        let SpecialSyncModel = Backbone.Model.extend({
+            sync: function (method, model, options) {
+                _.extend(options, {specialSync: true});
+                return Backbone.Model.prototype.sync.call(this, method, model, options);
+            },
+            urlRoot:'/test'
+        });
+
+        let model = new SpecialSyncModel();
+        let onSuccess = function (model, response, options) {
+            expect(options.specialSync).toBeTruthy();
+        };
+
+        model.save(null, {success: onSuccess});
+        this.ajaxSettings.success();
+    });
 });
