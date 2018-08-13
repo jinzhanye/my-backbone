@@ -363,7 +363,7 @@ describe('Backbone.Model', () => {
                 _.extend(options, {specialSync: true});
                 return Backbone.Model.prototype.sync.call(this, method, model, options);
             },
-            urlRoot:'/test'
+            urlRoot: '/test'
         });
 
         let model = new SpecialSyncModel();
@@ -373,5 +373,55 @@ describe('Backbone.Model', () => {
 
         model.save(null, {success: onSuccess});
         this.ajaxSettings.success();
+    });
+
+    it('#1030 - `save` with `wait` results in correct attributes if success is called during sync', () => {
+        expect.assertions(2);
+        let model = new Backbone.Model({x: 1, y: 2});
+        model.sync = function (method, model, options) {
+            options.success();
+        };
+        model.on('change:x', function () {
+            expect(true).toBeTruthy();
+        });
+        model.save({x: 3}, {wait: true});
+        expect(model.get('x')).toBe(3);
+    });
+
+    it('save turns on parse flag', () => {
+        let Model = Backbone.Model.extend({
+            sync: function (method, model, options) {
+                expect(options.parse).toBeTruthy();
+            }
+        });
+        new Model().save();
+    });
+
+    it('#1377 - Save without attrs triggers \'error\'.', () => {
+        expect.assertions(1);
+        let Model = Backbone.Model.extend({
+            url: '/test/',
+            sync: function (method, m, options) {
+                options.success();
+            },
+            validate: function () {
+                return 'invalid';
+            }
+        });
+        let model = new Model({id: 1});
+        model.on('invalidate', function () {
+            expect(true).toBeTruthy();
+        });
+        model.save();
+    });
+
+    it('#3778 - id will only be updated if it is set', () => {
+        expect.assertions(2);
+        let model = new Backbone.Model({id: 1});
+        model.id = 2;
+        model.set({foo: 'bar'});
+        expect(model.id).toBe(2);
+        model.set({id: 3});
+        expect(model.id).toBe(3);
     });
 });

@@ -21,6 +21,11 @@ Controller表示控制层，用来对原始数据（Model）进行加工，传�
 - destroy:DELETE
 
 ## 设计模式
+面向对象编程
+view中的事件委托
+封装服务
+单元测试
+
 - 装饰者模式
     - wrapError
     借用jQuery Error 处理函数 1603 -> 包装错误处理函数 2018 -> 开发者的错误处理函数
@@ -36,6 +41,7 @@ Controller表示控制层，用来对原始数据（Model）进行加工，传�
         };
     ````    
 - eventApis iteree通用接口
+- Backbone.ajax对$.ajax的代理模式
 
 ## Events
 model的all事件只被该model的其他事件触发时触发，其他model的事件不会触发该model的all handler
@@ -140,6 +146,6 @@ _onModelEvent: function(){
 [各模块API图](https://www.jianshu.com/p/90a481e76eac)
 [用到的设计模式](https://www.oschina.net/translate/backbone-js-tips-patterns?lang=chs&page=1#)
 [源码分析](http://web.jobbole.com/85593/)
-
+[观察者模式](https://segmentfault.com/a/1190000000480727)
 http://www.html-js.com/article/Backbonejs-basic-tutorial-of-MVC-mode-and-Backbonejs
 
